@@ -2,31 +2,45 @@
 
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FcGoogle } from "react-icons/fc";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useState } from "react";
 
 export default function AuthPage() {
   const router = useRouter();
+  const [error, setError] = useState("");
 
   const handleGoogleSignIn = () => {
-    // Google sign in işlemi burada yapılacak
-    console.log("Google sign in clicked");
+    try {
+      // Google sign in işlemi burada yapılacak
+      console.log("Google sign in clicked");
+    } catch (err) {
+      setError("Google sign in failed");
+    }
   };
 
-  const handleSignIn = (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Sign in işlemi burada yapılacak
-    router.push("/chat");
+    try {
+      // Sign in işlemi burada yapılacak
+      router.push("/chat");
+    } catch (err) {
+      setError("Sign in failed");
+    }
   };
 
-  const handleSignUp = (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Sign up işlemi burada yapılacak
-    router.push("/chat");
+    try {
+      // Sign up işlemi burada yapılacak
+      router.push("/chat");
+    } catch (err) {
+      setError("Sign up failed");
+    }
   };
 
   return (
@@ -38,6 +52,7 @@ export default function AuthPage() {
         <CardHeader>
           <CardTitle>Welcome to Sonox</CardTitle>
           <CardDescription>Sign in to your account or create a new one.</CardDescription>
+          {error && <p className="text-sm text-destructive mt-2">{error}</p>}
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="signin" className="w-full">

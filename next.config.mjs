@@ -17,7 +17,11 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    turbo: false
+    turbo: {
+      rules: {
+        // Option to disable specific rules
+      }
+    }
   },
 }
 

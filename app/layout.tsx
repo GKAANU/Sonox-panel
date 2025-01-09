@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { CallProvider } from "@/components/call/CallProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Sonox Chat",
-  description: "Real-time chat application",
+  description: "Real-time chat application with video calls",
 };
 
 export default function RootLayout({
@@ -24,7 +25,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <CallProvider>
+            {children}
+          </CallProvider>
         </ThemeProvider>
       </body>
     </html>
