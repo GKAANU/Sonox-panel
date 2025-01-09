@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
+import { Copy } from "lucide-react";
 
 interface ProfileSettingsProps {
   open: boolean;
@@ -20,86 +20,93 @@ interface ProfileSettingsProps {
 }
 
 export function ProfileSettings({ open, onOpenChange }: ProfileSettingsProps) {
-  const { user, updateProfilePhoto, logout } = useAuth();
-  const [uploading, setUploading] = useState(false);
+  const { user, updateProfile } = useAuth();
+  const [displayName, setDisplayName] = useState(user?.displayName || "");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleSave = async () => {
+    if (!user) return;
+    
     try {
-      setUploading(true);
-      await updateProfilePhoto(file);
+      setLoading(true);
+      await updateProfile(displayName, photoFile);
+      onOpenChange(false);
     } catch (error) {
-      console.error('Error uploading profile photo:', error);
+      console.error('Error updating profile:', error);
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Error logging out:', error);
+  const handleCopyUserId = () => {
+    if (user?.uid) {
+      navigator.clipboard.writeText(user.uid);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Profile Settings</DialogTitle>
-          <DialogDescription>
-            Update your profile information and settings.
-          </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="flex flex-col items-center gap-4">
-            <Avatar className="h-24 w-24">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-20 w-20">
               <AvatarImage src={user?.photoURL || undefined} />
               <AvatarFallback>{user?.displayName?.[0]}</AvatarFallback>
             </Avatar>
-            <div className="flex flex-col items-center gap-2">
-              <Label htmlFor="picture" className="cursor-pointer">
-                Change Profile Picture
-              </Label>
+            <div>
+              <Label htmlFor="photo">Profile Photo</Label>
               <Input
-                id="picture"
+                id="photo"
                 type="file"
                 accept="image/*"
-                className="hidden"
-                onChange={handleFileChange}
-                disabled={uploading}
+                onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
               />
             </div>
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="name">Name</Label>
+
+          <div>
+            <Label htmlFor="displayName">Display Name</Label>
             <Input
-              id="name"
-              value={user?.displayName || ''}
-              disabled
-              className="bg-muted"
+              id="displayName"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              value={user?.email || ''}
-              disabled
-              className="bg-muted"
-            />
+
+          <div>
+            <Label>User ID</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={user?.uid || ""}
+                readOnly
+                className="font-mono text-sm"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleCopyUserId}
+                title="Copy User ID"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Share this ID with friends to let them add you
+            </p>
           </div>
-        </div>
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-          <Button variant="destructive" onClick={handleLogout}>
-            Logout
-          </Button>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={loading}>
+              Save Changes
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

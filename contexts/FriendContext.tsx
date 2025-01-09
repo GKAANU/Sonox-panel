@@ -13,7 +13,8 @@ import {
   doc,
   getDocs,
   deleteDoc,
-  serverTimestamp
+  serverTimestamp,
+  getDoc
 } from 'firebase/firestore';
 
 interface FriendRequest {
@@ -33,6 +34,7 @@ interface FriendContextType {
   acceptFriendRequest: (requestId: string) => Promise<void>;
   rejectFriendRequest: (requestId: string) => Promise<void>;
   searchUsers: (query: string) => Promise<any[]>;
+  searchUserById: (userId: string) => Promise<any | null>;
 }
 
 const FriendContext = createContext<FriendContextType | null>(null);
@@ -153,13 +155,25 @@ export const FriendProvider = ({ children }: { children: React.ReactNode }) => {
       .filter(u => u.id !== user.uid); // Kendini hariç tut
   };
 
+  const searchUserById = async (userId: string) => {
+    if (!user) throw new Error('No user logged in');
+    if (userId === user.uid) throw new Error('Cannot search for yourself');
+
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
+
+    if (!userDoc.exists()) return null;
+    return { id: userDoc.id, ...userDoc.data() };
+  };
+
   const value = {
     friendRequests,
     friends,
     sendFriendRequest,
     acceptFriendRequest,
     rejectFriendRequest,
-    searchUsers
+    searchUsers,
+    searchUserById
   };
 
   return (

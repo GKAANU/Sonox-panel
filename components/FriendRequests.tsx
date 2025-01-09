@@ -8,22 +8,39 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useFriend } from "@/contexts/FriendContext";
 import { Check, X, UserPlus, Search } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 export function FriendRequests() {
-  const { friendRequests, friends, searchUsers, sendFriendRequest, acceptFriendRequest, rejectFriendRequest } = useFriend();
+  const { friendRequests, searchUsers, searchUserById, sendFriendRequest, acceptFriendRequest, rejectFriendRequest } = useFriend();
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchType, setSearchType] = useState<"name" | "id">("name");
+  const [error, setError] = useState("");
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     
     try {
       setLoading(true);
-      const results = await searchUsers(searchQuery);
-      setSearchResults(results);
-    } catch (error) {
+      setError("");
+      
+      if (searchType === "id") {
+        const user = await searchUserById(searchQuery.trim());
+        setSearchResults(user ? [user] : []);
+        if (!user) {
+          setError("User not found");
+        }
+      } else {
+        const results = await searchUsers(searchQuery);
+        setSearchResults(results);
+        if (results.length === 0) {
+          setError("No users found");
+        }
+      }
+    } catch (error: any) {
       console.error('Search error:', error);
+      setError(error.message || "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -33,8 +50,9 @@ export function FriendRequests() {
     try {
       setLoading(true);
       await sendFriendRequest(userId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Send request error:', error);
+      setError(error.message || "Failed to send friend request");
     } finally {
       setLoading(false);
     }
@@ -55,17 +73,51 @@ export function FriendRequests() {
       </TabsList>
 
       <TabsContent value="search" className="space-y-4">
-        <div className="flex gap-2">
-          <Input
-            placeholder="Search users..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          />
-          <Button onClick={handleSearch} disabled={loading}>
-            <Search className="h-4 w-4" />
-          </Button>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Button
+              variant={searchType === "name" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSearchType("name")}
+            >
+              Search by Name
+            </Button>
+            <Button
+              variant={searchType === "id" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSearchType("id")}
+            >
+              Search by ID
+            </Button>
+          </div>
+          
+          <div className="flex gap-2">
+            <div className="flex-1 space-y-1">
+              <Label>
+                {searchType === "id" ? "Enter User ID" : "Search by Name"}
+              </Label>
+              <Input
+                placeholder={searchType === "id" ? "Enter user ID..." : "Search users..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              />
+            </div>
+            <Button 
+              onClick={handleSearch} 
+              disabled={loading}
+              className="self-end"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
+
+        {error && (
+          <div className="text-sm text-red-500 text-center">
+            {error}
+          </div>
+        )}
 
         <ScrollArea className="h-[300px]">
           {searchResults.map((user) => (
