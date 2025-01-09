@@ -40,6 +40,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useChat } from "@/contexts/ChatContext";
 import { useRouter } from "next/navigation";
 import { FriendRequests } from "@/components/FriendRequests";
+import { toast } from "sonner";
+import { useFriend } from "@/contexts/FriendContext";
 
 export default function ChatPage() {
   const [message, setMessage] = useState("");
@@ -60,6 +62,7 @@ export default function ChatPage() {
     userChats 
   } = useChat();
   const router = useRouter();
+  const { friendRequests } = useFriend();
 
   useEffect(() => {
     if (!user) {
@@ -70,6 +73,20 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (friendRequests.length > 0) {
+      friendRequests.forEach(request => {
+        toast.message("New Friend Request", {
+          description: `${request.senderName} sent you a friend request`,
+          action: {
+            label: "View",
+            onClick: () => setShowFriendDialog(true)
+          }
+        });
+      });
+    }
+  }, [friendRequests]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,6 +111,39 @@ export default function ChatPage() {
     } catch (error) {
       console.error('Error creating group:', error);
     }
+  };
+
+  const renderChatItem = (chat: any) => {
+    const otherParticipant = chat.participantDetails?.[chat.participants.find((id: string) => id !== user?.uid)];
+    const displayName = chat.isGroup ? chat.groupName : otherParticipant?.displayName;
+    const photoURL = chat.isGroup ? chat.groupPhoto : otherParticipant?.photoURL;
+
+    return (
+      <div
+        key={chat.id}
+        className={`flex items-center gap-3 p-4 hover:bg-accent cursor-pointer ${
+          currentChat?.id === chat.id ? 'bg-accent' : ''
+        }`}
+        onClick={() => setCurrentChat(chat)}
+      >
+        <Avatar>
+          <AvatarImage src={photoURL} />
+          <AvatarFallback>
+            {chat.isGroup ? (
+              <Users className="h-4 w-4" />
+            ) : (
+              displayName?.[0] || 'U'
+            )}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1">
+          <div className="font-medium">{displayName}</div>
+          <div className="text-sm text-muted-foreground">
+            {chat.lastMessage || 'No messages yet'}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -133,44 +183,25 @@ export default function ChatPage() {
           </Button>
           <Button 
             variant="outline" 
-            className="w-full"
+            className="w-full relative"
             onClick={() => setShowFriendDialog(true)}
           >
             <UserPlus className="h-4 w-4 mr-2" />
             Add Friend
+            {friendRequests.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {friendRequests.length}
+              </span>
+            )}
           </Button>
         </div>
         <div className="overflow-y-auto h-[calc(100vh-12rem)]">
-          {userChats.map((chat) => (
-            <div
-              key={chat.id}
-              className={`flex items-center gap-3 p-4 hover:bg-accent cursor-pointer ${
-                currentChat?.id === chat.id ? 'bg-accent' : ''
-              }`}
-              onClick={() => setCurrentChat(chat)}
-            >
-              <Avatar>
-                <AvatarImage 
-                  src={chat.isGroup ? chat.groupPhoto : undefined}
-                />
-                <AvatarFallback>
-                  {chat.isGroup ? (
-                    <Users className="h-4 w-4" />
-                  ) : (
-                    chat.groupName?.[0] || 'C'
-                  )}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1">
-                <div className="font-medium">
-                  {chat.isGroup ? chat.groupName : chat.participants[0]}
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {chat.lastMessage || 'No messages yet'}
-                </div>
-              </div>
+          {userChats.map(renderChatItem)}
+          {userChats.length === 0 && (
+            <div className="text-center text-muted-foreground p-4">
+              No chats yet. Add friends to start chatting!
             </div>
-          ))}
+          )}
         </div>
       </div>
 

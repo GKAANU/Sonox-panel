@@ -9,7 +9,11 @@ import {
   addDoc,
   serverTimestamp,
   where,
-  getDocs
+  getDocs,
+  getDoc,
+  doc,
+  DocumentData,
+  DocumentReference
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from './AuthContext';
@@ -30,6 +34,31 @@ interface Chat {
   isGroup: boolean;
   groupName?: string;
   groupPhoto?: string;
+  participantDetails: {
+    [key: string]: {
+      displayName: string;
+      photoURL: string | null;
+    }
+  };
+}
+
+interface UserData {
+  displayName: string;
+  photoURL: string | null;
+  email: string;
+  uid: string;
+}
+
+interface ChatResult {
+  id: string;
+  participants: string[];
+  isGroup: boolean;
+  participantDetails: {
+    [key: string]: {
+      displayName: string;
+      photoURL: string | null;
+    }
+  };
 }
 
 interface ChatContextType {
@@ -60,18 +89,70 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!user) return;
 
-    // Kullanıcının sohbetlerini dinle
-    const q = query(
-      collection(db, 'chats'),
+    const friendsQuery = query(
+      collection(db, 'friends'),
       where('participants', 'array-contains', user.uid)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const chats: Chat[] = [];
-      snapshot.forEach((doc) => {
-        chats.push({ id: doc.id, ...doc.data() } as Chat);
+    const unsubscribe = onSnapshot(friendsQuery, async (snapshot) => {
+      const chatsPromises = snapshot.docs.map(async (docSnapshot) => {
+        const friendData = docSnapshot.data();
+        const otherUserId = friendData.participants.find((id: string) => id !== user.uid);
+        
+        if (!otherUserId) return null;
+
+        // Get other user's details
+        const userDocRef = doc(db, 'users', otherUserId);
+        const userDocSnap = await getDoc(userDocRef);
+        const userData = userDocSnap.data() as UserData | undefined;
+
+        // Check if chat already exists
+        const chatQuery = query(
+          collection(db, 'chats'),
+          where('participants', 'array-contains', user.uid)
+        );
+        const chatSnapshot = await getDocs(chatQuery);
+        let chatId = '';
+
+        // Find existing chat or create new one
+        const existingChat = chatSnapshot.docs.find(doc => {
+          const data = doc.data();
+          return data.participants.includes(otherUserId) && !data.isGroup;
+        });
+
+        if (existingChat) {
+          chatId = existingChat.id;
+        } else {
+          // Create new chat
+          const chatRef = await addDoc(collection(db, 'chats'), {
+            participants: [user.uid, otherUserId],
+            isGroup: false,
+            createdAt: serverTimestamp()
+          });
+          chatId = chatRef.id;
+        }
+
+        const newChat: Chat = {
+          id: chatId,
+          participants: [user.uid, otherUserId],
+          isGroup: false,
+          participantDetails: {
+            [otherUserId]: {
+              displayName: userData?.displayName || 'Unknown User',
+              photoURL: userData?.photoURL || null
+            }
+          }
+        };
+
+        return newChat;
       });
-      setUserChats(chats);
+
+      const validChats = (await Promise.all(chatsPromises)).filter((chat): chat is Chat => chat !== null);
+      
+      setUserChats(prevChats => {
+        const groupChats = prevChats.filter(chat => chat.isGroup);
+        return [...groupChats, ...validChats];
+      });
     });
 
     return () => unsubscribe();
@@ -80,7 +161,6 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!currentChat) return;
 
-    // Mevcut sohbetin mesajlarını dinle
     const q = query(
       collection(db, `chats/${currentChat.id}/messages`),
       orderBy('timestamp', 'asc')
@@ -119,19 +199,41 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       const allParticipants = [...participants, user.uid];
+      
+      // Get participant details
+      const participantDetailsPromises = participants.map(async (participantId) => {
+        const userDoc = await getDoc(doc(db, 'users', participantId));
+        const userData = userDoc.data() as UserData | undefined;
+        return [participantId, {
+          displayName: userData?.displayName || 'Unknown User',
+          photoURL: userData?.photoURL || null
+        }] as const;
+      });
+
+      const participantDetailsArray = await Promise.all(participantDetailsPromises);
+      const participantDetails = Object.fromEntries(participantDetailsArray);
+
       const chatRef = await addDoc(collection(db, 'chats'), {
         participants: allParticipants,
         isGroup: true,
         groupName: name,
         createdAt: serverTimestamp(),
-        createdBy: user.uid
+        createdBy: user.uid,
+        participantDetails
       });
 
       setCurrentChat({
         id: chatRef.id,
         participants: allParticipants,
         isGroup: true,
-        groupName: name
+        groupName: name,
+        participantDetails: {
+          ...participantDetails,
+          [user.uid]: {
+            displayName: user.displayName || 'Unknown User',
+            photoURL: user.photoURL || null
+          }
+        }
       });
     } catch (error) {
       console.error('Error creating group chat:', error);
