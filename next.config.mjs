@@ -23,6 +23,11 @@ const nextConfig = {
       }
     }
   },
+  output: 'standalone',
+  images: {
+    domains: ['sonox.kaanuzun.com'],
+    unoptimized: true,
+  },
 }
 
 mergeConfig(nextConfig, userConfig)
