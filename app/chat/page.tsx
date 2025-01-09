@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ProfileSettings } from "@/components/ProfileSettings";
 import {
   Dialog,
   DialogContent,
@@ -30,84 +31,69 @@ import {
   MicOff,
   Monitor,
   Users,
-  Plus
+  Plus,
+  LogOut
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/contexts/AuthContext";
+import { useChat } from "@/contexts/ChatContext";
+import { useRouter } from "next/navigation";
+import { FriendRequests } from "@/components/FriendRequests";
 
 export default function ChatPage() {
   const [message, setMessage] = useState("");
-  const [isCallActive, setIsCallActive] = useState(false);
-  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
-  const localVideoRef = useRef<HTMLVideoElement>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const [showFriendDialog, setShowFriendDialog] = useState(false);
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const [groupName, setGroupName] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const { user } = useAuth();
+  const { 
+    messages, 
+    sendMessage, 
+    currentChat,
+    setCurrentChat,
+    createGroupChat,
+    userChats 
+  } = useChat();
+  const router = useRouter();
 
-  // WebRTC bağlantısı için gerekli state'ler
-  const peerConnection = useRef<RTCPeerConnection | null>(null);
-  const dataChannel = useRef<RTCDataChannel | null>(null);
+  useEffect(() => {
+    if (!user) {
+      router.push('/auth');
+    }
+  }, [user, router]);
 
-  // Örnek veri
-  const contacts = [
-    { id: 1, name: "John Doe", status: "online", avatar: "/avatars/1.png" },
-    { id: 2, name: "Jane Smith", status: "offline", avatar: "/avatars/2.png" },
-    { id: 3, name: "Development Team", type: "group", members: 5, avatar: "/avatars/group1.png" },
-  ];
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-  const messages = [
-    { id: 1, sender: "John Doe", content: "Hey, how are you?", time: "10:30 AM" },
-    { id: 2, sender: "You", content: "I'm good, thanks! How about you?", time: "10:31 AM" },
-  ];
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!message.trim()) return;
 
-  // WebRTC bağlantısını başlat
-  const startCall = async (withVideo: boolean = false) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: withVideo,
-        audio: true,
-      });
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-
-      // WebRTC bağlantısını kur
-      peerConnection.current = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-      });
-
-      stream.getTracks().forEach((track) => {
-        peerConnection.current?.addTrack(track, stream);
-      });
-
-      setIsCallActive(true);
+      await sendMessage(message);
+      setMessage("");
     } catch (error) {
-      console.error("Error starting call:", error);
+      console.error('Error sending message:', error);
     }
   };
 
-  // Ekran paylaşımını başlat
-  const startScreenShare = async () => {
+  const handleCreateGroup = async () => {
+    if (!groupName || selectedContacts.length === 0) return;
+
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-      });
-
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-
-      setIsScreenSharing(true);
+      await createGroupChat(groupName, selectedContacts);
+      setShowGroupDialog(false);
+      setGroupName("");
+      setSelectedContacts([]);
     } catch (error) {
-      console.error("Error sharing screen:", error);
+      console.error('Error creating group:', error);
     }
-  };
-
-  // Grup oluştur
-  const createGroup = () => {
-    setShowGroupDialog(true);
   };
 
   return (
@@ -117,12 +103,16 @@ export default function ChatPage() {
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-4">
             <Avatar>
-              <AvatarImage src="/avatars/user.png" />
-              <AvatarFallback>You</AvatarFallback>
+              <AvatarImage src={user?.photoURL || undefined} />
+              <AvatarFallback>{user?.displayName?.[0]}</AvatarFallback>
             </Avatar>
             <div className="flex gap-2">
               <ThemeToggle />
-              <Button variant="ghost" size="icon">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setShowProfileSettings(true)}
+              >
                 <Settings className="h-5 w-5" />
               </Button>
             </div>
@@ -132,31 +122,51 @@ export default function ChatPage() {
             <Input placeholder="Search" className="pl-8" />
           </div>
         </div>
-        <div className="p-2">
-          <Button variant="outline" className="w-full" onClick={createGroup}>
+        <div className="p-2 space-y-2">
+          <Button 
+            variant="outline" 
+            className="w-full"
+            onClick={() => setShowGroupDialog(true)}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Create Group
           </Button>
+          <Button 
+            variant="outline" 
+            className="w-full"
+            onClick={() => setShowFriendDialog(true)}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add Friend
+          </Button>
         </div>
         <div className="overflow-y-auto h-[calc(100vh-12rem)]">
-          {contacts.map((contact) => (
+          {userChats.map((chat) => (
             <div
-              key={contact.id}
-              className="flex items-center gap-3 p-4 hover:bg-accent cursor-pointer"
+              key={chat.id}
+              className={`flex items-center gap-3 p-4 hover:bg-accent cursor-pointer ${
+                currentChat?.id === chat.id ? 'bg-accent' : ''
+              }`}
+              onClick={() => setCurrentChat(chat)}
             >
               <Avatar>
-                <AvatarImage src={contact.avatar} />
+                <AvatarImage 
+                  src={chat.isGroup ? chat.groupPhoto : undefined}
+                />
                 <AvatarFallback>
-                  {contact.type === "group" ? <Users className="h-4 w-4" /> : contact.name[0]}
+                  {chat.isGroup ? (
+                    <Users className="h-4 w-4" />
+                  ) : (
+                    chat.groupName?.[0] || 'C'
+                  )}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
-                <div className="font-medium">{contact.name}</div>
+                <div className="font-medium">
+                  {chat.isGroup ? chat.groupName : chat.participants[0]}
+                </div>
                 <div className="text-sm text-muted-foreground">
-                  {contact.type === "group" 
-                    ? `${contact.members} members`
-                    : contact.status
-                  }
+                  {chat.lastMessage || 'No messages yet'}
                 </div>
               </div>
             </div>
@@ -166,131 +176,129 @@ export default function ChatPage() {
 
       {/* Ana Chat Alanı */}
       <div className="flex-1 flex flex-col">
-        {/* Chat Başlığı */}
-        <div className="p-4 border-b border-border bg-background flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Avatar>
-              <AvatarImage src="/avatars/1.png" />
-              <AvatarFallback>JD</AvatarFallback>
-            </Avatar>
-            <div>
-              <div className="font-medium">John Doe</div>
-              <div className="text-sm text-muted-foreground">Online</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => startCall(false)}>
-              <PhoneCall className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={() => startCall(true)}>
-              <Video className="h-5 w-5" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <UserPlus className="h-5 w-5" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+        {currentChat ? (
+          <>
+            {/* Chat Başlığı */}
+            <div className="p-4 border-b border-border bg-background flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Avatar>
+                  <AvatarImage 
+                    src={currentChat.isGroup ? currentChat.groupPhoto : undefined}
+                  />
+                  <AvatarFallback>
+                    {currentChat.isGroup ? (
+                      <Users className="h-4 w-4" />
+                    ) : (
+                      currentChat.groupName?.[0] || 'C'
+                    )}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="font-medium">
+                    {currentChat.isGroup 
+                      ? currentChat.groupName 
+                      : currentChat.participants[0]
+                    }
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {currentChat.isGroup 
+                      ? `${currentChat.participants.length} members`
+                      : 'Online'
+                    }
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
                 <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-5 w-5" />
+                  <PhoneCall className="h-5 w-5" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={startScreenShare}>
-                  <Monitor className="h-4 w-4 mr-2" />
-                  Share Screen
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Users className="h-4 w-4 mr-2" />
-                  Add to Group
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Aktif Çağrı */}
-        {isCallActive && (
-          <div className="relative h-[300px] bg-accent">
-            <video
-              ref={remoteVideoRef}
-              className="w-full h-full object-cover"
-              autoPlay
-              playsInline
-            />
-            <video
-              ref={localVideoRef}
-              className="absolute bottom-4 right-4 w-[200px] h-[150px] object-cover rounded-lg border border-border"
-              autoPlay
-              playsInline
-              muted
-            />
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-              <Button
-                variant={isAudioEnabled ? "outline" : "destructive"}
-                size="icon"
-                onClick={() => setIsAudioEnabled(!isAudioEnabled)}
-              >
-                {isAudioEnabled ? (
-                  <Mic className="h-4 w-4" />
-                ) : (
-                  <MicOff className="h-4 w-4" />
-                )}
-              </Button>
-              <Button
-                variant={isVideoEnabled ? "outline" : "destructive"}
-                size="icon"
-                onClick={() => setIsVideoEnabled(!isVideoEnabled)}
-              >
-                <Video className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => setIsCallActive(false)}
-              >
-                End Call
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Mesajlar */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${
-                msg.sender === "You" ? "justify-end" : "justify-start"
-              }`}
-            >
-              <div
-                className={`max-w-[70%] rounded-lg p-3 ${
-                  msg.sender === "You"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
-                }`}
-              >
-                <div className="text-sm">{msg.content}</div>
-                <div className="text-xs mt-1 opacity-70">{msg.time}</div>
+                <Button variant="ghost" size="icon">
+                  <Video className="h-5 w-5" />
+                </Button>
+                <Button variant="ghost" size="icon">
+                  <UserPlus className="h-5 w-5" />
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem>
+                      <Monitor className="h-4 w-4 mr-2" />
+                      Share Screen
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Users className="h-4 w-4 mr-2" />
+                      Add to Group
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
-          ))}
-        </div>
 
-        {/* Mesaj Gönderme */}
-        <div className="p-4 border-t border-border bg-background">
-          <div className="flex items-center gap-2">
-            <Input
-              placeholder="Type a message..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              className="flex-1"
-            />
-            <Button size="icon">
-              <Send className="h-5 w-5" />
-            </Button>
+            {/* Mesajlar */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex ${
+                    msg.senderId === user?.uid ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <div
+                    className={`max-w-[70%] rounded-lg p-3 ${
+                      msg.senderId === user?.uid
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted"
+                    }`}
+                  >
+                    {msg.senderId !== user?.uid && (
+                      <div className="text-xs font-medium mb-1">
+                        {msg.senderName}
+                      </div>
+                    )}
+                    <div className="text-sm">{msg.text}</div>
+                    <div className="text-xs mt-1 opacity-70">
+                      {msg.timestamp?.toDate().toLocaleTimeString()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Mesaj Gönderme */}
+            <form 
+              onSubmit={handleSendMessage}
+              className="p-4 border-t border-border bg-background"
+            >
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Type a message..."
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  className="flex-1"
+                />
+                <Button type="submit" size="icon">
+                  <Send className="h-5 w-5" />
+                </Button>
+              </div>
+            </form>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            Select a chat to start messaging
           </div>
-        </div>
+        )}
       </div>
+
+      {/* Profil Ayarları */}
+      <ProfileSettings 
+        open={showProfileSettings}
+        onOpenChange={setShowProfileSettings}
+      />
 
       {/* Grup Oluşturma Dialog */}
       <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>
@@ -304,28 +312,45 @@ export default function ChatPage() {
           <div className="space-y-4">
             <div>
               <Label>Group Name</Label>
-              <Input placeholder="Enter group name" />
+              <Input 
+                placeholder="Enter group name"
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+              />
             </div>
             <div>
               <Label>Add Members</Label>
               <div className="mt-2 space-y-2">
-                {contacts
-                  .filter((contact) => contact.type !== "group")
-                  .map((contact) => (
+                {userChats
+                  .filter(chat => !chat.isGroup)
+                  .map((chat) => (
                     <div
-                      key={contact.id}
+                      key={chat.id}
                       className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent"
                     >
-                      <Checkbox id={`member-${contact.id}`} />
+                      <Checkbox
+                        id={`member-${chat.id}`}
+                        checked={selectedContacts.includes(chat.participants[0])}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedContacts([...selectedContacts, chat.participants[0]]);
+                          } else {
+                            setSelectedContacts(
+                              selectedContacts.filter(id => id !== chat.participants[0])
+                            );
+                          }
+                        }}
+                      />
                       <label
-                        htmlFor={`member-${contact.id}`}
+                        htmlFor={`member-${chat.id}`}
                         className="flex items-center gap-2 cursor-pointer"
                       >
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={contact.avatar} />
-                          <AvatarFallback>{contact.name[0]}</AvatarFallback>
+                          <AvatarFallback>
+                            {chat.participants[0][0]}
+                          </AvatarFallback>
                         </Avatar>
-                        <span>{contact.name}</span>
+                        <span>{chat.participants[0]}</span>
                       </label>
                     </div>
                   ))}
@@ -335,9 +360,21 @@ export default function ChatPage() {
               <Button variant="outline" onClick={() => setShowGroupDialog(false)}>
                 Cancel
               </Button>
-              <Button>Create Group</Button>
+              <Button onClick={handleCreateGroup}>
+                Create Group
+              </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Arkadaş Ekleme Dialog */}
+      <Dialog open={showFriendDialog} onOpenChange={setShowFriendDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Friend</DialogTitle>
+          </DialogHeader>
+          <FriendRequests />
         </DialogContent>
       </Dialog>
     </div>

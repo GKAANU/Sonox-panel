@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { CallProvider } from "@/components/call/CallProvider";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ChatProvider } from "@/contexts/ChatContext";
+import { FriendProvider } from "@/contexts/FriendContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,9 +27,13 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <CallProvider>
-            {children}
-          </CallProvider>
+          <AuthProvider>
+            <FriendProvider>
+              <ChatProvider>
+                {children}
+              </ChatProvider>
+            </FriendProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
