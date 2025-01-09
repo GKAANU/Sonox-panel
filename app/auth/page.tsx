@@ -1,178 +1,97 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent } from "@/components/ui/card";
 import { FcGoogle } from "react-icons/fc";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function AuthPage() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
 
-  async function onSubmit(event: React.FormEvent<HTMLFormElement>, type: 'login' | 'register') {
-    event.preventDefault();
-    setIsLoading(true);
+  const handleGoogleSignIn = () => {
+    // Google sign in işlemi burada yapılacak
+    console.log("Google sign in clicked");
+  };
 
-    // Handle auth operations here
-    // Example: API call
+  const handleSignIn = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Sign in işlemi burada yapılacak
+    router.push("/chat");
+  };
 
-    setTimeout(() => {
-      setIsLoading(false);
-      if (type === 'login') {
-        router.push("/chat");
-      } else {
-        router.push("/?tab=login");
-      }
-    }, 1000);
-  }
-
-  async function handleGoogleAuth() {
-    setIsLoading(true);
-    // Handle Google auth here
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push("/chat");
-    }, 1000);
-  }
+  const handleSignUp = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Sign up işlemi burada yapılacak
+    router.push("/chat");
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardContent className="pt-6">
-          <div className="flex flex-col space-y-2 text-center mb-8">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-              Welcome to Sonox Chat
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Sign in to your account or create a new one
-            </p>
-          </div>
-
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8">
-              <TabsTrigger value="login">Sign In</TabsTrigger>
-              <TabsTrigger value="register">Sign Up</TabsTrigger>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
+      <Card className="w-[400px]">
+        <CardHeader>
+          <CardTitle>Welcome to Sonox</CardTitle>
+          <CardDescription>Sign in to your account or create a new one.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="signin" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
-
-            <TabsContent value="login">
-              <div className="grid gap-6">
-                <form onSubmit={(e) => onSubmit(e, 'login')}>
-                  <div className="grid gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        placeholder="name@example.com"
-                        type="email"
-                        autoCapitalize="none"
-                        autoComplete="email"
-                        autoCorrect="off"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        autoCapitalize="none"
-                        autoComplete="current-password"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                    <Button className="mt-2" disabled={isLoading}>
-                      {isLoading && (
-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      )}
-                      Sign In
-                    </Button>
+            <TabsContent value="signin">
+              <form onSubmit={handleSignIn}>
+                <div className="grid w-full items-center gap-4">
+                  <div className="flex flex-col space-y-1.5">
+                    <Label htmlFor="signin-email">Email</Label>
+                    <Input id="signin-email" placeholder="Enter your email" />
                   </div>
-                </form>
-              </div>
+                  <div className="flex flex-col space-y-1.5">
+                    <Label htmlFor="signin-password">Password</Label>
+                    <Input id="signin-password" type="password" placeholder="Enter your password" />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-4 mt-4">
+                  <Button type="submit">Sign In</Button>
+                  <Button variant="outline" type="button" onClick={handleGoogleSignIn} className="gap-2">
+                    <FcGoogle className="w-5 h-5" />
+                    Sign in with Google
+                  </Button>
+                </div>
+              </form>
             </TabsContent>
-
-            <TabsContent value="register">
-              <div className="grid gap-6">
-                <form onSubmit={(e) => onSubmit(e, 'register')}>
-                  <div className="grid gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        placeholder="name@example.com"
-                        type="email"
-                        autoCapitalize="none"
-                        autoComplete="email"
-                        autoCorrect="off"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        autoCapitalize="none"
-                        autoComplete="new-password"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="confirmPassword">Confirm Password</Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        autoCapitalize="none"
-                        autoComplete="new-password"
-                        disabled={isLoading}
-                        required
-                      />
-                    </div>
-                    <Button className="mt-2" disabled={isLoading}>
-                      {isLoading && (
-                        <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      )}
-                      Sign Up
-                    </Button>
+            <TabsContent value="signup">
+              <form onSubmit={handleSignUp}>
+                <div className="grid w-full items-center gap-4">
+                  <div className="flex flex-col space-y-1.5">
+                    <Label htmlFor="signup-name">Name</Label>
+                    <Input id="signup-name" placeholder="Enter your name" />
                   </div>
-                </form>
-              </div>
+                  <div className="flex flex-col space-y-1.5">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input id="signup-email" placeholder="Enter your email" />
+                  </div>
+                  <div className="flex flex-col space-y-1.5">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <Input id="signup-password" type="password" placeholder="Create a password" />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-4 mt-4">
+                  <Button type="submit">Sign Up</Button>
+                  <Button variant="outline" type="button" onClick={handleGoogleSignIn} className="gap-2">
+                    <FcGoogle className="w-5 h-5" />
+                    Sign up with Google
+                  </Button>
+                </div>
+              </form>
             </TabsContent>
           </Tabs>
-
-          <div className="relative mt-8">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">
-                Or continue with
-              </span>
-            </div>
-          </div>
-
-          <Button
-            variant="outline"
-            type="button"
-            disabled={isLoading}
-            onClick={handleGoogleAuth}
-            className="w-full mt-6"
-          >
-            {isLoading ? (
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            ) : (
-              <FcGoogle className="mr-2 h-5 w-5" />
-            )}
-            Sign up with Google
-          </Button>
         </CardContent>
       </Card>
     </div>
