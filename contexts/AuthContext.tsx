@@ -62,7 +62,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(user, { displayName: name });
       
-      // Kullanıcı dokümanını oluştur
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         email: user.email,
@@ -81,7 +80,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const provider = new GoogleAuthProvider();
       const { user } = await signInWithPopup(auth, provider);
 
-      // Kullanıcı dokümanını güncelle veya oluştur
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         email: user.email,
@@ -113,7 +111,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const photoURL = await getDownloadURL(storageRef);
       await updateProfile(user, { photoURL });
 
-      // Firestore'daki kullanıcı dokümanını güncelle
       await setDoc(doc(db, 'users', user.uid), {
         photoURL
       }, { merge: true });

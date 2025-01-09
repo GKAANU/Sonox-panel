@@ -51,64 +51,78 @@ export const FriendProvider = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
   const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
+  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
 
-  // Arkadaşlık isteklerini dinle
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
+    // Listen to friend requests
+    const requestsQuery = query(
       collection(db, 'friendRequests'),
-      where('receiverId', '==', user.uid)
+      where('receiverId', '==', user.uid),
+      where('status', '==', 'pending')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const requests: FriendRequest[] = [];
-      snapshot.forEach((doc) => {
-        requests.push({ id: doc.id, ...doc.data() } as FriendRequest);
-      });
+    const unsubscribeRequests = onSnapshot(requestsQuery, (snapshot) => {
+      const requests = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as FriendRequest));
       setFriendRequests(requests);
     });
 
-    return () => unsubscribe();
-  }, [user]);
-
-  // Arkadaş listesini dinle
-  useEffect(() => {
-    if (!user) return;
-
-    const q = query(
+    // Listen to friends
+    const friendsQuery = query(
       collection(db, 'friends'),
       where('participants', 'array-contains', user.uid)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const friendsList: any[] = [];
-      snapshot.forEach((doc) => {
-        friendsList.push({ id: doc.id, ...doc.data() });
-      });
+    const unsubscribeFriends = onSnapshot(friendsQuery, (snapshot) => {
+      const friendsList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
       setFriends(friendsList);
     });
 
-    return () => unsubscribe();
+    // Listen to sent requests
+    const sentRequestsQuery = query(
+      collection(db, 'friendRequests'),
+      where('senderId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribeSentRequests = onSnapshot(sentRequestsQuery, (snapshot) => {
+      const sentIds = new Set(snapshot.docs.map(doc => doc.data().receiverId));
+      setSentRequests(sentIds);
+    });
+
+    return () => {
+      unsubscribeRequests();
+      unsubscribeFriends();
+      unsubscribeSentRequests();
+    };
   }, [user]);
 
   const sendFriendRequest = async (userId: string) => {
     if (!user) throw new Error('No user logged in');
-
-    // Önceki istekleri kontrol et
-    const existingRequests = await getDocs(
-      query(
-        collection(db, 'friendRequests'),
-        where('senderId', '==', user.uid),
-        where('receiverId', '==', userId)
-      )
+    
+    // Check if request already exists
+    const existingQuery = query(
+      collection(db, 'friendRequests'),
+      where('senderId', '==', user.uid),
+      where('receiverId', '==', userId),
+      where('status', '==', 'pending')
     );
-
-    if (!existingRequests.empty) {
+    
+    const existingDocs = await getDocs(existingQuery);
+    if (!existingDocs.empty) {
       throw new Error('Friend request already sent');
     }
 
-    // Arkadaşlık isteği gönder
+    const receiverDoc = await getDoc(doc(db, 'users', userId));
+    if (!receiverDoc.exists()) throw new Error('User not found');
+
     await addDoc(collection(db, 'friendRequests'), {
       senderId: user.uid,
       senderName: user.displayName,
@@ -123,12 +137,16 @@ export const FriendProvider = ({ children }: { children: React.ReactNode }) => {
     if (!user) throw new Error('No user logged in');
 
     const requestRef = doc(db, 'friendRequests', requestId);
-    const request = (await getDocs(query(collection(db, 'friendRequests'), where('id', '==', requestId)))).docs[0].data() as FriendRequest;
+    const requestDoc = await getDoc(requestRef);
+    
+    if (!requestDoc.exists()) throw new Error('Request not found');
+    
+    const request = requestDoc.data() as FriendRequest;
 
-    // İsteği güncelle
+    // Update request status
     await updateDoc(requestRef, { status: 'accepted' });
 
-    // Arkadaşlık ilişkisi oluştur
+    // Create friend relationship
     await addDoc(collection(db, 'friends'), {
       participants: [request.senderId, request.receiverId],
       timestamp: serverTimestamp()
