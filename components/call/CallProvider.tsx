@@ -6,6 +6,7 @@ import { io, Socket } from 'socket.io-client';
 
 interface CallContextType {
   callUser: (userId: string, isVideo: boolean) => void;
+  callGroup: (participants: string[], isVideo: boolean) => void;
   answerCall: () => void;
   endCall: () => void;
   stream: MediaStream | null;
@@ -14,6 +15,8 @@ interface CallContextType {
     from: string;
     signal: any;
     isVideo: boolean;
+    isGroup?: boolean;
+    participants?: string[];
   };
   callAccepted: boolean;
   myVideo: React.RefObject<HTMLVideoElement>;
@@ -25,6 +28,7 @@ interface CallContextType {
   toggleVideo: () => void;
   isAudioEnabled: boolean;
   isVideoEnabled: boolean;
+  isCalling: boolean;
 }
 
 const CallContext = createContext<CallContextType | null>(null);
@@ -46,6 +50,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isVideo, setIsVideo] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isCalling, setIsCalling] = useState(false);
 
   const myVideo = useRef<HTMLVideoElement>(null);
   const userVideo = useRef<HTMLVideoElement>(null);
@@ -187,6 +192,72 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const callGroup = async (participants: string[], withVideo: boolean) => {
+    try {
+      setIsVideo(withVideo);
+      setIsCalling(true);
+      await initializeStream(withVideo);
+      
+      if (!stream) {
+        throw new Error('Failed to initialize stream');
+      }
+
+      // Create peer connections for each participant
+      const peers = participants.map(participantId => {
+        const peer = new Peer({
+          initiator: true,
+          trickle: false,
+          stream,
+          config: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
+          }
+        });
+
+        peer.on('signal', (data) => {
+          socketRef.current?.emit('callUser', {
+            userToCall: participantId,
+            signalData: data,
+            from: me,
+            isVideo: withVideo,
+            isGroup: true,
+            participants
+          });
+        });
+
+        peer.on('stream', (currentStream) => {
+          if (userVideo.current) {
+            userVideo.current.srcObject = currentStream;
+          }
+        });
+
+        peer.on('error', (err) => {
+          console.error('Peer error:', err);
+        });
+
+        return peer;
+      });
+
+      socketRef.current?.on('callAccepted', (data) => {
+        const { signal, from } = data;
+        const peer = peers.find(p => p === from);
+        if (peer) {
+          setCallAccepted(true);
+          setIsCalling(false);
+          peer.signal(signal);
+        }
+      });
+
+      connectionRef.current = peers[0]; // Store first peer for now
+    } catch (error) {
+      console.error('Error in callGroup:', error);
+      setIsCalling(false);
+      endCall();
+    }
+  };
+
   const value = {
     call,
     callAccepted,
@@ -196,13 +267,15 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     callEnded,
     me,
     callUser,
+    callGroup,
     answerCall,
     endCall,
     isVideo,
     toggleAudio,
     toggleVideo,
     isAudioEnabled,
-    isVideoEnabled
+    isVideoEnabled,
+    isCalling
   };
 
   return (

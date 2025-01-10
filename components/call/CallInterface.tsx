@@ -22,13 +22,14 @@ export const CallInterface = () => {
     toggleAudio,
     toggleVideo,
     isAudioEnabled,
-    isVideoEnabled
+    isVideoEnabled,
+    isCalling
   } = useCall();
 
   useEffect(() => {
     let audio: HTMLAudioElement | null = null;
     
-    if (call.isReceivingCall && !callAccepted) {
+    if ((call.isReceivingCall || isCalling) && !callAccepted) {
       audio = new Audio('/sounds/ringtone.mp3');
       audio.loop = true;
       audio.play().catch(console.error);
@@ -40,102 +41,151 @@ export const CallInterface = () => {
         audio.currentTime = 0;
       }
     };
-  }, [call.isReceivingCall, callAccepted]);
+  }, [call.isReceivingCall, callAccepted, isCalling]);
+
+  if (!call.isReceivingCall && !callAccepted && !isCalling) {
+    return null;
+  }
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50">
       <div className="container flex items-center justify-center min-h-screen">
         <Card className="w-full max-w-4xl p-6">
-          <div className={`grid ${isVideo ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
-            {/* My Video/Audio */}
-            <div className="relative">
-              {isVideo ? (
-                <video
-                  playsInline
-                  muted
-                  ref={myVideo}
-                  autoPlay
-                  className="w-full rounded-lg bg-muted"
-                />
-              ) : (
-                <div className="w-full h-48 rounded-lg bg-muted flex items-center justify-center">
-                  <div className="text-center">
-                    <Mic className="w-8 h-8 mx-auto mb-2" />
-                    <span>You</span>
-                  </div>
-                </div>
-              )}
-              <div className="absolute bottom-4 left-4">
-                <span className="text-sm text-white bg-black/50 px-2 py-1 rounded">
-                  You {!isAudioEnabled && '(Muted)'}
-                </span>
-              </div>
-            </div>
-
-            {/* User Video/Audio */}
-            {callAccepted && !callEnded && (
-              <div className="relative">
+          {isCalling ? (
+            <div className="text-center py-8">
+              <div className="animate-pulse mb-4">
                 {isVideo ? (
-                  <video
-                    playsInline
-                    ref={userVideo}
-                    autoPlay
-                    className="w-full rounded-lg bg-muted"
-                  />
+                  <Video className="w-12 h-12 mx-auto text-primary" />
                 ) : (
-                  <div className="w-full h-48 rounded-lg bg-muted flex items-center justify-center">
-                    <div className="text-center">
-                      <Mic className="w-8 h-8 mx-auto mb-2" />
-                      <span>Caller</span>
-                    </div>
-                  </div>
+                  <Phone className="w-12 h-12 mx-auto text-primary" />
                 )}
-                <div className="absolute bottom-4 left-4">
-                  <span className="text-sm text-white bg-black/50 px-2 py-1 rounded">
-                    Caller
-                  </span>
-                </div>
               </div>
-            )}
-          </div>
-
-          {/* Call Controls */}
-          <div className="flex justify-center gap-4 mt-6">
-            {call.isReceivingCall && !callAccepted && (
-              <div className="text-center">
-                <p className="mb-4">Incoming {call.isVideo ? 'Video' : 'Voice'} Call...</p>
-                <Button onClick={answerCall} variant="default">
+              <p className="text-lg mb-2">Calling...</p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Waiting for answer
+              </p>
+              <Button onClick={endCall} variant="destructive">
+                <PhoneOff className="w-4 h-4 mr-2" />
+                Cancel Call
+              </Button>
+            </div>
+          ) : call.isReceivingCall && !callAccepted ? (
+            <div className="text-center py-8">
+              <div className="animate-pulse mb-4">
+                {call.isVideo ? (
+                  <Video className="w-12 h-12 mx-auto text-primary" />
+                ) : (
+                  <Phone className="w-12 h-12 mx-auto text-primary" />
+                )}
+              </div>
+              <p className="text-lg mb-2">Incoming {call.isVideo ? 'Video' : 'Voice'} Call</p>
+              <div className="flex gap-4 justify-center mt-6">
+                <Button 
+                  onClick={answerCall} 
+                  variant="default" 
+                  className="bg-green-500 hover:bg-green-600"
+                >
                   <Phone className="w-4 h-4 mr-2" />
                   Answer
                 </Button>
-              </div>
-            )}
-
-            {callAccepted && !callEnded && (
-              <>
-                {isVideo && (
-                  <Button onClick={toggleVideo} variant="outline">
-                    {isVideoEnabled ? (
-                      <Video className="w-4 h-4" />
-                    ) : (
-                      <VideoOff className="w-4 h-4" />
-                    )}
-                  </Button>
-                )}
-                <Button onClick={toggleAudio} variant="outline">
-                  {isAudioEnabled ? (
-                    <Mic className="w-4 h-4" />
-                  ) : (
-                    <MicOff className="w-4 h-4" />
-                  )}
-                </Button>
                 <Button onClick={endCall} variant="destructive">
+                  <PhoneOff className="w-4 h-4 mr-2" />
+                  Decline
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className={`grid ${isVideo ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
+                {/* My Video/Audio */}
+                <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
+                  {isVideo ? (
+                    <video
+                      playsInline
+                      muted
+                      ref={myVideo}
+                      autoPlay
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <div className="text-center">
+                        <Mic className="w-8 h-8 mx-auto mb-2" />
+                        <span>You</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center">
+                    <span className="text-sm text-white bg-black/50 px-2 py-1 rounded">
+                      You {!isAudioEnabled && '(Muted)'}
+                    </span>
+                    <div className="flex gap-2">
+                      {isVideo && (
+                        <Button 
+                          onClick={toggleVideo} 
+                          variant="outline" 
+                          size="sm"
+                          className="bg-black/50 hover:bg-black/70"
+                        >
+                          {isVideoEnabled ? (
+                            <Video className="w-4 h-4" />
+                          ) : (
+                            <VideoOff className="w-4 h-4" />
+                          )}
+                        </Button>
+                      )}
+                      <Button 
+                        onClick={toggleAudio} 
+                        variant="outline"
+                        size="sm"
+                        className="bg-black/50 hover:bg-black/70"
+                      >
+                        {isAudioEnabled ? (
+                          <Mic className="w-4 h-4" />
+                        ) : (
+                          <MicOff className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Remote Video/Audio */}
+                {callAccepted && !callEnded && (
+                  <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
+                    {isVideo ? (
+                      <video
+                        playsInline
+                        ref={userVideo}
+                        autoPlay
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="text-center">
+                          <Mic className="w-8 h-8 mx-auto mb-2" />
+                          <span>Remote User</span>
+                        </div>
+                      </div>
+                    )}
+                    <div className="absolute bottom-2 left-2">
+                      <span className="text-sm text-white bg-black/50 px-2 py-1 rounded">
+                        Remote User
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Call Controls */}
+              <div className="flex justify-center gap-4 mt-6">
+                <Button onClick={endCall} variant="destructive" size="lg">
                   <PhoneOff className="w-4 h-4 mr-2" />
                   End Call
                 </Button>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          )}
         </Card>
       </div>
     </div>

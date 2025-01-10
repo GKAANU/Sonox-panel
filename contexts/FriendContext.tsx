@@ -14,7 +14,8 @@ import {
   getDocs,
   deleteDoc,
   serverTimestamp,
-  getDoc
+  getDoc,
+  writeBatch
 } from 'firebase/firestore';
 
 interface FriendRequest {
@@ -35,6 +36,7 @@ interface FriendContextType {
   rejectFriendRequest: (requestId: string) => Promise<void>;
   searchUsers: (query: string) => Promise<any[]>;
   searchUserById: (userId: string) => Promise<any | null>;
+  removeFriend: (friendId: string) => Promise<void>;
 }
 
 const FriendContext = createContext<FriendContextType | null>(null);
@@ -213,6 +215,49 @@ export const FriendProvider = ({ children }: { children: React.ReactNode }) => {
     return { id: userDoc.id, ...userDoc.data() };
   };
 
+  const removeFriend = async (friendId: string) => {
+    if (!user) throw new Error('No user logged in');
+
+    try {
+      // Delete from friends collection
+      const friendRef = doc(db, 'friends', friendId);
+      await deleteDoc(friendRef);
+
+      // Delete chat messages
+      const messagesRef = collection(db, `chats/${friendId}/messages`);
+      const messagesSnapshot = await getDocs(messagesRef);
+      const batch = writeBatch(db);
+      
+      messagesSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
+      // Delete chat document
+      const chatRef = doc(db, 'chats', friendId);
+      await deleteDoc(chatRef);
+
+      // Delete any pending friend requests
+      const requestsQuery = query(
+        collection(db, 'friendRequests'),
+        where('senderId', 'in', [user.uid, friendId]),
+        where('receiverId', 'in', [user.uid, friendId])
+      );
+      
+      const requestsSnapshot = await getDocs(requestsQuery);
+      const requestsBatch = writeBatch(db);
+      
+      requestsSnapshot.docs.forEach((doc) => {
+        requestsBatch.delete(doc.ref);
+      });
+      await requestsBatch.commit();
+
+    } catch (error) {
+      console.error('Error removing friend:', error);
+      throw error;
+    }
+  };
+
   const value = {
     friendRequests,
     friends,
@@ -220,7 +265,8 @@ export const FriendProvider = ({ children }: { children: React.ReactNode }) => {
     acceptFriendRequest,
     rejectFriendRequest,
     searchUsers,
-    searchUserById
+    searchUserById,
+    removeFriend
   };
 
   return (

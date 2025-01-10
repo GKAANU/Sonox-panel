@@ -262,27 +262,52 @@ export default function ChatPage() {
     return (
       <div
         key={chat.id}
-        className={`flex items-center gap-3 p-4 hover:bg-accent cursor-pointer ${
+        className={`flex items-center justify-between p-4 hover:bg-accent cursor-pointer ${
           currentChat?.id === chat.id ? 'bg-accent' : ''
         }`}
-        onClick={() => setCurrentChat(chat)}
       >
-        <Avatar>
-          <AvatarImage src={photoURL} />
-          <AvatarFallback>
-            {chat.isGroup ? (
-              <Users className="h-4 w-4" />
-            ) : (
-              displayName?.[0] || 'U'
-            )}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <div className="font-medium">{displayName}</div>
-          <div className="text-sm text-muted-foreground">
-            {chat.lastMessage || ''}
+        <div 
+          className="flex items-center gap-3 flex-1"
+          onClick={() => setCurrentChat(chat)}
+        >
+          <Avatar>
+            <AvatarImage src={photoURL} />
+            <AvatarFallback>
+              {chat.isGroup ? (
+                <Users className="h-4 w-4" />
+              ) : (
+                displayName?.[0] || 'U'
+              )}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
+            <div className="font-medium">{displayName}</div>
+            <div className="text-sm text-muted-foreground">
+              {chat.lastMessage || ''}
+            </div>
           </div>
         </div>
+        {!chat.isGroup && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem 
+                onClick={() => {
+                  setCurrentChat(chat);
+                  setDeleteType('friend');
+                  setShowDeleteAlert(true);
+                }}
+                className="text-destructive"
+              >
+                Remove Friend
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     );
   };
@@ -296,10 +321,10 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen overflow-hidden bg-background">
       {/* Sol Sidebar - Kontaklar */}
-      <div className="w-80 border-r border-border">
-        <div className="p-4 border-b border-border">
+      <div className="w-80 flex flex-col border-r border-border">
+        <div className="p-4 border-b border-border shrink-0">
           <div className="flex items-center justify-between mb-4">
             <Avatar>
               <AvatarImage src={user?.photoURL || undefined} />
@@ -321,7 +346,7 @@ export default function ChatPage() {
             <Input placeholder="Search" className="pl-8" />
           </div>
         </div>
-        <div className="p-2 space-y-2">
+        <div className="p-2 space-y-2 shrink-0">
           <Button 
             variant="outline" 
             className="w-full"
@@ -344,7 +369,7 @@ export default function ChatPage() {
             )}
           </Button>
         </div>
-        <div className="overflow-y-auto h-[calc(100vh-12rem)]">
+        <div className="overflow-y-auto flex-1">
           {userChats.map(renderChatItem)}
           {userChats.length === 0 && (
             <div className="text-center text-muted-foreground p-4">
@@ -355,7 +380,7 @@ export default function ChatPage() {
       </div>
 
       {/* Ana Chat Alanı */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {currentChat ? (
           <>
             {renderChatHeader()}
@@ -389,7 +414,7 @@ export default function ChatPage() {
             {/* Mesaj Gönderme */}
             <form 
               onSubmit={handleSendMessage}
-              className="p-4 border-t border-border bg-background"
+              className="p-4 border-t border-border bg-background shrink-0"
             >
               <div className="flex items-center gap-2">
                 <Input
@@ -421,66 +446,76 @@ export default function ChatPage() {
       <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New Group</DialogTitle>
+            <DialogTitle>Create Group</DialogTitle>
             <DialogDescription>
-              Create a new group and add members to start chatting together.
+              Create a new group chat by selecting members and giving it a name.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Group Name</Label>
-              <Input 
-                placeholder="Enter group name"
+              <Label htmlFor="group-name">Group Name</Label>
+              <Input
+                id="group-name"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
+                placeholder="Enter group name..."
               />
             </div>
             <div>
               <Label>Add Members</Label>
-              <div className="mt-2 space-y-2">
+              <div className="mt-2 max-h-[200px] overflow-y-auto space-y-2">
                 {userChats
                   .filter(chat => !chat.isGroup)
-                  .map((chat) => (
-                    <div
-                      key={chat.id}
-                      className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent"
-                    >
-                      <Checkbox
-                        id={`member-${chat.id}`}
-                        checked={selectedContacts.includes(chat.participants[0])}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedContacts([...selectedContacts, chat.participants[0]]);
-                          } else {
-                            setSelectedContacts(
-                              selectedContacts.filter(id => id !== chat.participants[0])
-                            );
-                          }
-                        }}
-                      />
-                      <label
-                        htmlFor={`member-${chat.id}`}
-                        className="flex items-center gap-2 cursor-pointer"
+                  .map((chat) => {
+                    const otherParticipant = getOtherParticipant(chat);
+                    return (
+                      <div
+                        key={chat.id}
+                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent"
                       >
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback>
-                            {chat.participants[0][0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span>{chat.participants[0]}</span>
-                      </label>
-                    </div>
-                  ))}
+                        <Checkbox
+                          id={`member-${chat.id}`}
+                          checked={selectedContacts.includes(
+                            chat.participants.find(id => id !== user?.uid) || ''
+                          )}
+                          onCheckedChange={(checked) => {
+                            const otherId = chat.participants.find(id => id !== user?.uid);
+                            if (otherId) {
+                              if (checked) {
+                                setSelectedContacts([...selectedContacts, otherId]);
+                              } else {
+                                setSelectedContacts(
+                                  selectedContacts.filter(id => id !== otherId)
+                                );
+                              }
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`member-${chat.id}`}
+                          className="flex items-center gap-2 cursor-pointer flex-1"
+                        >
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={otherParticipant?.photoURL || undefined} />
+                            <AvatarFallback>
+                              {otherParticipant?.displayName?.[0] || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span>{otherParticipant?.displayName}</span>
+                        </label>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowGroupDialog(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleCreateGroup}>
-                Create Group
-              </Button>
-            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowGroupDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateGroup} disabled={!groupName || selectedContacts.length === 0}>
+              Create Group
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
