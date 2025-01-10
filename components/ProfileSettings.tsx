@@ -14,6 +14,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { Copy, Upload, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { updateProfile } from "firebase/auth";
+import { updateDoc, doc } from "firebase/firestore";
+import { toast } from "react-hot-toast";
+import { db } from "@/lib/firebase";
+import { storage } from "@/lib/firebase";
 
 interface ProfileSettingsProps {
   open: boolean;
@@ -25,6 +31,7 @@ export function ProfileSettings({ open, onOpenChange }: ProfileSettingsProps) {
   const [displayName, setDisplayName] = useState(user?.displayName || "");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleSave = async () => {
@@ -62,6 +69,54 @@ export function ProfileSettings({ open, onOpenChange }: ProfileSettingsProps) {
     const file = e.target.files?.[0];
     if (file) {
       setPhotoFile(file);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !user) return;
+
+    const file = e.target.files[0];
+    const storageRef = ref(storage, `avatars/${user.uid}`);
+
+    try {
+      // Yükleme başladığında loading göster
+      setIsLoading(true);
+
+      // Resmi yükle
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          // İlerleme durumunu hesapla
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log('Upload is ' + progress + '% done');
+        },
+        (error) => {
+          console.error('Error uploading image:', error);
+          toast.error('Failed to upload image');
+          setIsLoading(false);
+        },
+        async () => {
+          // Yükleme tamamlandığında
+          const downloadURL = await getDownloadURL(storageRef);
+          
+          // Firestore ve auth'da profil resmini güncelle
+          await Promise.all([
+            updateProfile(user, { photoURL: downloadURL }),
+            updateDoc(doc(db, 'users', user.uid), {
+              photoURL: downloadURL
+            })
+          ]);
+
+          toast.success('Profile photo updated');
+          setIsLoading(false);
+        }
+      );
+    } catch (error) {
+      console.error('Error in image upload:', error);
+      toast.error('Failed to update profile photo');
+      setIsLoading(false);
     }
   };
 

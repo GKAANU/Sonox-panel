@@ -93,45 +93,62 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     if (!currentChat) return;
 
-    const q = query(
+    const messagesQuery = query(
       collection(db, `chats/${currentChat.id}/messages`),
       orderBy('timestamp', 'asc')
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
       const messages: Message[] = [];
       snapshot.forEach((doc) => {
-        messages.push({ id: doc.id, ...doc.data() } as Message);
+        const data = doc.data();
+        messages.push({
+          id: doc.id,
+          text: data.text,
+          senderId: data.senderId,
+          timestamp: data.timestamp,
+          senderName: data.senderName
+        });
       });
       setMessages(messages);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      setMessages([]);
+    };
   }, [currentChat]);
 
   const sendMessage = async (text: string): Promise<void> => {
     if (!currentChat || !user) return;
 
     try {
-      const messageRef = await addDoc(collection(db, `chats/${currentChat.id}/messages`), {
+      const chatRef = doc(db, 'chats', currentChat.id);
+      const chatDoc = await getDoc(chatRef);
+      
+      if (!chatDoc.exists()) {
+        await updateDoc(chatRef, {
+          participants: currentChat.participants,
+          isGroup: currentChat.isGroup || false,
+          groupName: currentChat.groupName || null,
+          lastMessage: text,
+          lastMessageTimestamp: serverTimestamp()
+        });
+      }
+
+      await addDoc(collection(db, `chats/${currentChat.id}/messages`), {
         text,
         senderId: user.uid,
         senderName: user.displayName,
         timestamp: serverTimestamp()
       });
 
-      // Update lastMessage in both collections
-      const chatRef = doc(db, 'chats', currentChat.id);
       const friendRef = doc(db, 'friends', currentChat.id);
-      const updateData = {
+      await updateDoc(friendRef, {
         lastMessage: text,
         lastMessageTimestamp: serverTimestamp()
-      };
+      });
 
-      await Promise.all([
-        updateDoc(chatRef, updateData),
-        updateDoc(friendRef, updateData)
-      ]);
     } catch (error) {
       console.error('Error sending message:', error);
       throw error;

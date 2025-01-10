@@ -32,7 +32,9 @@ import {
   Monitor,
   Users,
   Plus,
-  LogOut
+  LogOut,
+  ArrowLeft,
+  PhoneOff
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -74,7 +76,10 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   const [deleteType, setDeleteType] = useState<'messages' | 'friend' | null>(null);
-  
+  const [isCalling, setIsCalling] = useState(false);
+  const [otherParticipant, setOtherParticipant] = useState<any>(null);
+  const [isVideo, setIsVideo] = useState(false);
+
   const { user } = useAuth();
   const { 
     messages, 
@@ -121,6 +126,7 @@ export default function ChatPage() {
       setMessage("");
     } catch (error) {
       console.error('Error sending message:', error);
+      toast.error('Failed to send message');
     }
   };
 
@@ -320,10 +326,19 @@ export default function ChatPage() {
     }
   };
 
+  const endCall = () => {
+    setIsCalling(false);
+    setOtherParticipant(null);
+    setIsVideo(false);
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sol Sidebar - Kontaklar */}
-      <div className="w-80 flex flex-col border-r border-border">
+      <div className={`
+        w-full md:w-80 flex flex-col border-r border-border
+        ${currentChat ? 'hidden md:flex' : 'flex'}
+      `}>
         <div className="p-4 border-b border-border shrink-0">
           <div className="flex items-center justify-between mb-4">
             <Avatar>
@@ -380,10 +395,89 @@ export default function ChatPage() {
       </div>
 
       {/* Ana Chat Alanı */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className={`
+        flex-1 flex flex-col overflow-hidden
+        ${currentChat ? 'flex' : 'hidden md:flex'}
+      `}>
         {currentChat ? (
           <>
-            {renderChatHeader()}
+            <div className="p-4 border-b border-border bg-background flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden"
+                  onClick={() => setCurrentChat(undefined)}
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <Avatar>
+                  <AvatarImage src={currentChat.isGroup ? currentChat.groupPhoto || undefined : otherParticipant?.photoURL || undefined} />
+                  <AvatarFallback>
+                    {currentChat.isGroup ? (
+                      <Users className="h-4 w-4" />
+                    ) : (
+                      otherParticipant?.displayName?.[0] || 'U'
+                    )}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="font-medium">
+                    {currentChat.isGroup 
+                      ? currentChat.groupName 
+                      : otherParticipant?.displayName
+                    }
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {currentChat.isGroup 
+                      ? `${currentChat.participants.length} members`
+                      : ''
+                    }
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => handleCall(false)}
+                  disabled={currentChat.isGroup}
+                >
+                  <PhoneCall className="h-5 w-5" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => handleCall(true)}
+                  disabled={currentChat.isGroup}
+                >
+                  <Video className="h-5 w-5" />
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreVertical className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => {
+                      setDeleteType('messages');
+                      setShowDeleteAlert(true);
+                    }}>
+                      Delete Messages
+                    </DropdownMenuItem>
+                    {!currentChat.isGroup && (
+                      <DropdownMenuItem onClick={() => {
+                        setDeleteType('friend');
+                        setShowDeleteAlert(true);
+                      }}>
+                        Remove Friend
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
             
             {/* Mesajlar */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -395,7 +489,7 @@ export default function ChatPage() {
                   }`}
                 >
                   <div
-                    className={`max-w-[70%] rounded-lg p-3 ${
+                    className={`max-w-[70%] md:max-w-[50%] rounded-lg p-3 ${
                       msg.senderId === user?.uid
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted"
@@ -435,6 +529,35 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+
+      {/* Arama Bildirimi */}
+      {isCalling && (
+        <div className="fixed top-4 right-4 bg-background border border-border rounded-lg p-4 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="animate-pulse">
+              {isVideo ? (
+                <Video className="h-6 w-6 text-primary" />
+              ) : (
+                <Phone className="h-6 w-6 text-primary" />
+              )}
+            </div>
+            <div>
+              <p className="font-medium">Calling...</p>
+              <p className="text-sm text-muted-foreground">
+                {otherParticipant?.displayName}
+              </p>
+            </div>
+            <Button
+              variant="destructive"
+              size="icon"
+              className="ml-2"
+              onClick={endCall}
+            >
+              <PhoneOff className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Profil Ayarları */}
       <ProfileSettings 

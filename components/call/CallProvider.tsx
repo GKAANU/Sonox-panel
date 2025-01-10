@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import Peer from 'simple-peer';
 import { io, Socket } from 'socket.io-client';
+import { toast } from 'react-hot-toast';
 
 interface CallContextType {
   callUser: (userId: string, isVideo: boolean) => void;
@@ -97,38 +98,66 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const callUser = async (userId: string, withVideo: boolean) => {
-    setIsVideo(withVideo);
-    await initializeStream(withVideo);
-    
-    if (!stream) return;
-
-    const peer = new Peer({
-      initiator: true,
-      trickle: false,
-      stream,
-    });
-
-    peer.on('signal', (data) => {
-      socketRef.current?.emit('callUser', {
-        userToCall: userId,
-        signalData: data,
-        from: me,
-        isVideo: withVideo
-      });
-    });
-
-    peer.on('stream', (currentStream) => {
-      if (userVideo.current) {
-        userVideo.current.srcObject = currentStream;
+    try {
+      setIsVideo(withVideo);
+      setIsCalling(true);
+      await initializeStream(withVideo);
+      
+      if (!stream) {
+        throw new Error('Failed to initialize stream');
       }
-    });
 
-    socketRef.current?.on('callAccepted', (signal) => {
-      setCallAccepted(true);
-      peer.signal(signal);
-    });
+      const peer = new Peer({
+        initiator: true,
+        trickle: false,
+        stream,
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
+      });
 
-    connectionRef.current = peer;
+      peer.on('signal', (data) => {
+        socketRef.current?.emit('callUser', {
+          userToCall: userId,
+          signalData: data,
+          from: me,
+          isVideo: withVideo
+        });
+      });
+
+      peer.on('stream', (currentStream) => {
+        if (userVideo.current) {
+          userVideo.current.srcObject = currentStream;
+        }
+      });
+
+      peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        endCall();
+      });
+
+      socketRef.current?.on('callAccepted', (signal) => {
+        setCallAccepted(true);
+        setIsCalling(false);
+        peer.signal(signal);
+      });
+
+      socketRef.current?.on('callRejected', () => {
+        setIsCalling(false);
+        endCall();
+        toast.error('Call was rejected');
+      });
+
+      connectionRef.current = peer;
+    } catch (error) {
+      console.error('Error in callUser:', error);
+      setIsCalling(false);
+      endCall();
+      toast.error('Failed to start call');
+    }
   };
 
   const answerCall = async () => {
