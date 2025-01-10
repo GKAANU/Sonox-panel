@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ChatProvider } from "@/contexts/ChatContext";
 import { FriendProvider } from "@/contexts/FriendContext";
+import { CallProvider } from "@/components/call/CallProvider";
 import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -31,8 +32,10 @@ export default function RootLayout({
           <AuthProvider>
             <FriendProvider>
               <ChatProvider>
-                <Toaster richColors position="top-right" />
-                {children}
+                <CallProvider>
+                  <Toaster richColors position="top-right" />
+                  {children}
+                </CallProvider>
               </ChatProvider>
             </FriendProvider>
           </AuthProvider>

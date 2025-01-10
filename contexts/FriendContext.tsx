@@ -107,6 +107,22 @@ export const FriendProvider = ({ children }: { children: React.ReactNode }) => {
   const sendFriendRequest = async (userId: string) => {
     if (!user) throw new Error('No user logged in');
     
+    // Check if already friends
+    const friendsQuery = query(
+      collection(db, 'friends'),
+      where('participants', 'array-contains', user.uid)
+    );
+    
+    const friendsSnapshot = await getDocs(friendsQuery);
+    const isAlreadyFriend = friendsSnapshot.docs.some(doc => {
+      const data = doc.data();
+      return data.participants.includes(userId);
+    });
+
+    if (isAlreadyFriend) {
+      throw new Error('You are already friends with this user');
+    }
+
     // Check if request already exists
     const existingQuery = query(
       collection(db, 'friendRequests'),
@@ -118,6 +134,19 @@ export const FriendProvider = ({ children }: { children: React.ReactNode }) => {
     const existingDocs = await getDocs(existingQuery);
     if (!existingDocs.empty) {
       throw new Error('Friend request already sent');
+    }
+
+    // Check if there's a pending request from the other user
+    const incomingQuery = query(
+      collection(db, 'friendRequests'),
+      where('senderId', '==', userId),
+      where('receiverId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+
+    const incomingDocs = await getDocs(incomingQuery);
+    if (!incomingDocs.empty) {
+      throw new Error('This user has already sent you a friend request');
     }
 
     const receiverDoc = await getDoc(doc(db, 'users', userId));

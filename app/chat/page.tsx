@@ -42,6 +42,27 @@ import { useRouter } from "next/navigation";
 import { FriendRequests } from "@/components/FriendRequests";
 import { toast } from "sonner";
 import { useFriend } from "@/contexts/FriendContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { 
+  collection, 
+  doc, 
+  deleteDoc, 
+  getDocs,
+  writeBatch
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { CallInterface } from "@/components/call/CallInterface";
+import { useCall } from "@/components/call/CallProvider";
+import { Chat } from "@/types/chat";
 
 export default function ChatPage() {
   const [message, setMessage] = useState("");
@@ -51,6 +72,8 @@ export default function ChatPage() {
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [groupName, setGroupName] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+  const [deleteType, setDeleteType] = useState<'messages' | 'friend' | null>(null);
   
   const { user } = useAuth();
   const { 
@@ -63,6 +86,7 @@ export default function ChatPage() {
   } = useChat();
   const router = useRouter();
   const { friendRequests } = useFriend();
+  const { callUser, call, callAccepted } = useCall();
 
   useEffect(() => {
     if (!user) {
@@ -113,10 +137,127 @@ export default function ChatPage() {
     }
   };
 
-  const renderChatItem = (chat: any) => {
-    const otherParticipant = chat.participantDetails?.[chat.participants.find((id: string) => id !== user?.uid)];
+  const handleDeleteMessages = async () => {
+    if (!currentChat) return;
+    try {
+      const messagesRef = collection(db, `chats/${currentChat.id}/messages`);
+      const messagesSnapshot = await getDocs(messagesRef);
+      const batch = writeBatch(db);
+      
+      messagesSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      
+      await batch.commit();
+      setShowDeleteAlert(false);
+    } catch (error) {
+      console.error('Error deleting messages:', error);
+    }
+  };
+
+  const handleDeleteFriend = async () => {
+    if (!currentChat) return;
+    try {
+      const friendRef = doc(db, 'friends', currentChat.id);
+      await deleteDoc(friendRef);
+      
+      const chatRef = doc(db, 'chats', currentChat.id);
+      await deleteDoc(chatRef);
+      
+      setCurrentChat(undefined);
+      setShowDeleteAlert(false);
+    } catch (error) {
+      console.error('Error deleting friend:', error);
+    }
+  };
+
+  const getOtherParticipant = (chat: Chat) => {
+    if (!user || !chat) return null;
+    const otherUserId = chat.participants.find((id: string) => id !== user.uid);
+    return otherUserId ? chat.participantDetails[otherUserId] : null;
+  };
+
+  const renderChatHeader = () => {
+    if (!currentChat) return null;
+    const otherParticipant = getOtherParticipant(currentChat);
+
+    return (
+      <div className="p-4 border-b border-border bg-background flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Avatar>
+            <AvatarImage src={currentChat.isGroup ? currentChat.groupPhoto || undefined : otherParticipant?.photoURL || undefined} />
+            <AvatarFallback>
+              {currentChat.isGroup ? (
+                <Users className="h-4 w-4" />
+              ) : (
+                otherParticipant?.displayName?.[0] || 'U'
+              )}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium">
+              {currentChat.isGroup 
+                ? currentChat.groupName 
+                : otherParticipant?.displayName
+              }
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {currentChat.isGroup 
+                ? `${currentChat.participants.length} members`
+                : ''
+              }
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => handleCall(false)}
+            disabled={currentChat.isGroup}
+          >
+            <PhoneCall className="h-5 w-5" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => handleCall(true)}
+            disabled={currentChat.isGroup}
+          >
+            <Video className="h-5 w-5" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                setDeleteType('messages');
+                setShowDeleteAlert(true);
+              }}>
+                Delete Messages
+              </DropdownMenuItem>
+              {!currentChat.isGroup && (
+                <DropdownMenuItem onClick={() => {
+                  setDeleteType('friend');
+                  setShowDeleteAlert(true);
+                }}>
+                  Remove Friend
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    );
+  };
+
+  const renderChatItem = (chat: Chat) => {
+    const otherParticipant = getOtherParticipant(chat);
     const displayName = chat.isGroup ? chat.groupName : otherParticipant?.displayName;
-    const photoURL = chat.isGroup ? chat.groupPhoto : otherParticipant?.photoURL;
+    const photoURL = chat.isGroup ? chat.groupPhoto || undefined : otherParticipant?.photoURL || undefined;
 
     return (
       <div
@@ -139,11 +280,19 @@ export default function ChatPage() {
         <div className="flex-1">
           <div className="font-medium">{displayName}</div>
           <div className="text-sm text-muted-foreground">
-            {chat.lastMessage || 'No messages yet'}
+            {chat.lastMessage || ''}
           </div>
         </div>
       </div>
     );
+  };
+
+  const handleCall = (isVideo: boolean) => {
+    if (!currentChat) return;
+    const otherUserId = currentChat.participants.find(id => id !== user?.uid);
+    if (otherUserId) {
+      callUser(otherUserId, isVideo);
+    }
   };
 
   return (
@@ -209,66 +358,8 @@ export default function ChatPage() {
       <div className="flex-1 flex flex-col">
         {currentChat ? (
           <>
-            {/* Chat Başlığı */}
-            <div className="p-4 border-b border-border bg-background flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar>
-                  <AvatarImage 
-                    src={currentChat.isGroup ? currentChat.groupPhoto : undefined}
-                  />
-                  <AvatarFallback>
-                    {currentChat.isGroup ? (
-                      <Users className="h-4 w-4" />
-                    ) : (
-                      currentChat.groupName?.[0] || 'C'
-                    )}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="font-medium">
-                    {currentChat.isGroup 
-                      ? currentChat.groupName 
-                      : currentChat.participants[0]
-                    }
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {currentChat.isGroup 
-                      ? `${currentChat.participants.length} members`
-                      : 'Online'
-                    }
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon">
-                  <PhoneCall className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <Video className="h-5 w-5" />
-                </Button>
-                <Button variant="ghost" size="icon">
-                  <UserPlus className="h-5 w-5" />
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreVertical className="h-5 w-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Monitor className="h-4 w-4 mr-2" />
-                      Share Screen
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Users className="h-4 w-4 mr-2" />
-                      Add to Group
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
+            {renderChatHeader()}
+            
             {/* Mesajlar */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((msg) => (
@@ -285,11 +376,6 @@ export default function ChatPage() {
                         : "bg-muted"
                     }`}
                   >
-                    {msg.senderId !== user?.uid && (
-                      <div className="text-xs font-medium mb-1">
-                        {msg.senderName}
-                      </div>
-                    )}
                     <div className="text-sm">{msg.text}</div>
                     <div className="text-xs mt-1 opacity-70">
                       {msg.timestamp?.toDate().toLocaleTimeString()}
@@ -408,6 +494,35 @@ export default function ChatPage() {
           <FriendRequests />
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteType === 'messages' ? 'Delete Messages' : 'Remove Friend'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteType === 'messages'
+                ? 'This will delete all messages in this chat. This action cannot be undone.'
+                : 'This will remove this friend and delete all messages. This action cannot be undone.'
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteType === 'messages' ? handleDeleteMessages : handleDeleteFriend}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Call Interface */}
+      {(call.isReceivingCall || callAccepted) && <CallInterface />}
     </div>
   );
 } 

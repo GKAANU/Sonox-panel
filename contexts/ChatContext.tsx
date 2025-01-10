@@ -17,55 +17,13 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from './AuthContext';
-
-interface Message {
-  id: string;
-  text: string;
-  senderId: string;
-  timestamp: any;
-  senderName: string;
-  senderPhoto?: string;
-}
-
-interface Chat {
-  id: string;
-  participants: string[];
-  lastMessage?: string;
-  isGroup: boolean;
-  groupName?: string;
-  groupPhoto?: string;
-  participantDetails: {
-    [key: string]: {
-      displayName: string;
-      photoURL: string | null;
-    }
-  };
-}
-
-interface UserData {
-  displayName: string;
-  photoURL: string | null;
-  email: string;
-  uid: string;
-}
-
-interface ChatResult {
-  id: string;
-  participants: string[];
-  isGroup: boolean;
-  participantDetails: {
-    [key: string]: {
-      displayName: string;
-      photoURL: string | null;
-    }
-  };
-}
+import { Chat, Message, UserData, ChatResult } from '@/types/chat';
 
 interface ChatContextType {
-  currentChat: Chat | null;
+  currentChat: Chat | undefined;
   messages: Message[];
   sendMessage: (text: string) => Promise<void>;
-  setCurrentChat: (chat: Chat) => void;
+  setCurrentChat: (chat: Chat | undefined) => void;
   createGroupChat: (name: string, participants: string[]) => Promise<void>;
   userChats: Chat[];
 }
@@ -81,7 +39,7 @@ export const useChat = () => {
 };
 
 export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
-  const [currentChat, setCurrentChat] = useState<Chat | null>(null);
+  const [currentChat, setCurrentChat] = useState<Chat | undefined>(undefined);
   const [messages, setMessages] = useState<Message[]>([]);
   const [userChats, setUserChats] = useState<Chat[]>([]);
   const { user } = useAuth();
@@ -184,8 +142,6 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
       await addDoc(collection(db, `chats/${currentChat.id}/messages`), {
         text,
         senderId: user.uid,
-        senderName: user.displayName,
-        senderPhoto: user.photoURL,
         timestamp: serverTimestamp()
       });
     } catch (error) {

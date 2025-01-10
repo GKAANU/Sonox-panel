@@ -5,7 +5,7 @@ import Peer from 'simple-peer';
 import { io, Socket } from 'socket.io-client';
 
 interface CallContextType {
-  callUser: (userId: string) => void;
+  callUser: (userId: string, isVideo: boolean) => void;
   answerCall: () => void;
   endCall: () => void;
   stream: MediaStream | null;
@@ -13,12 +13,18 @@ interface CallContextType {
     isReceivingCall: boolean;
     from: string;
     signal: any;
+    isVideo: boolean;
   };
   callAccepted: boolean;
   myVideo: React.RefObject<HTMLVideoElement>;
   userVideo: React.RefObject<HTMLVideoElement>;
   callEnded: boolean;
   me: string;
+  isVideo: boolean;
+  toggleAudio: () => void;
+  toggleVideo: () => void;
+  isAudioEnabled: boolean;
+  isVideoEnabled: boolean;
 }
 
 const CallContext = createContext<CallContextType | null>(null);
@@ -34,9 +40,12 @@ export const useCall = () => {
 export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [me, setMe] = useState('');
-  const [call, setCall] = useState({ isReceivingCall: false, from: '', signal: null });
+  const [call, setCall] = useState({ isReceivingCall: false, from: '', signal: null, isVideo: true });
   const [callAccepted, setCallAccepted] = useState(false);
   const [callEnded, setCallEnded] = useState(false);
+  const [isVideo, setIsVideo] = useState(true);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
 
   const myVideo = useRef<HTMLVideoElement>(null);
   const userVideo = useRef<HTMLVideoElement>(null);
@@ -44,31 +53,20 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const socketRef = useRef<Socket>();
 
   useEffect(() => {
-    // Socket.IO bağlantısını başlat
     socketRef.current = io('http://localhost:3001');
 
-    // Kullanıcının kamera ve mikrofon erişimini al
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .then((currentStream) => {
-        setStream(currentStream);
-        if (myVideo.current) {
-          myVideo.current.srcObject = currentStream;
-        }
-      });
-
-    // Socket.IO event listener'ları
     socketRef.current.on('me', (id) => setMe(id));
 
-    socketRef.current.on('callUser', ({ from, signal: callerSignal }) => {
+    socketRef.current.on('callUser', ({ from, signal: callerSignal, isVideo }) => {
       setCall({
         isReceivingCall: true,
         from,
         signal: callerSignal,
+        isVideo
       });
     });
 
     return () => {
-      // Cleanup
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
@@ -78,7 +76,25 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const callUser = (userId: string) => {
+  const initializeStream = async (video: boolean) => {
+    try {
+      const currentStream = await navigator.mediaDevices.getUserMedia({
+        video,
+        audio: true
+      });
+      setStream(currentStream);
+      if (myVideo.current) {
+        myVideo.current.srcObject = currentStream;
+      }
+    } catch (error) {
+      console.error('Error accessing media devices:', error);
+    }
+  };
+
+  const callUser = async (userId: string, withVideo: boolean) => {
+    setIsVideo(withVideo);
+    await initializeStream(withVideo);
+    
     if (!stream) return;
 
     const peer = new Peer({
@@ -92,6 +108,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         userToCall: userId,
         signalData: data,
         from: me,
+        isVideo: withVideo
       });
     });
 
@@ -109,7 +126,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     connectionRef.current = peer;
   };
 
-  const answerCall = () => {
+  const answerCall = async () => {
+    setIsVideo(call.isVideo);
+    await initializeStream(call.isVideo);
+    
     if (!stream || !call.signal) return;
 
     setCallAccepted(true);
@@ -139,7 +159,32 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (connectionRef.current) {
       connectionRef.current.destroy();
     }
-    window.location.reload();
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+    }
+    setStream(null);
+    setCallAccepted(false);
+    setCall({ isReceivingCall: false, from: '', signal: null, isVideo: true });
+  };
+
+  const toggleAudio = () => {
+    if (stream) {
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = !audioTrack.enabled;
+        setIsAudioEnabled(audioTrack.enabled);
+      }
+    }
+  };
+
+  const toggleVideo = () => {
+    if (stream) {
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoEnabled(videoTrack.enabled);
+      }
+    }
   };
 
   const value = {
@@ -153,6 +198,11 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
     callUser,
     answerCall,
     endCall,
+    isVideo,
+    toggleAudio,
+    toggleVideo,
+    isAudioEnabled,
+    isVideoEnabled
   };
 
   return (
