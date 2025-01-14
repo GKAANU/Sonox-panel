@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import Peer from 'simple-peer';
 import { io, Socket } from 'socket.io-client';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
+
 
 interface CallContextType {
   callUser: (userId: string, isVideo: boolean) => void;
@@ -42,6 +43,8 @@ export const useCall = () => {
   return context;
 };
 
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+
 export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [me, setMe] = useState('');
@@ -59,7 +62,10 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const socketRef = useRef<Socket>();
 
   useEffect(() => {
-    socketRef.current = io('http://localhost:3001');
+    socketRef.current = io(SOCKET_URL, {
+      transports: ['websocket'],
+      upgrade: false
+    });
 
     socketRef.current.on('me', (id) => setMe(id));
 
@@ -70,7 +76,12 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signal: callerSignal,
         isVideo
       });
-      toast.info('Incoming call...');
+      toast('Incoming call...', {
+        action: {
+          label: 'Answer',
+          onClick: () => answerCall()
+        }
+      });
     });
 
     return () => {
