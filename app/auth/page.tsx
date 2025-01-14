@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { FcGoogle } from "react-icons/fc";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import {
   Card,
   CardContent,
@@ -16,7 +17,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { cn } from "@/lib/utils";
 
 interface FormData {
   email: string;
@@ -96,9 +96,9 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-auth-pattern">
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-background/40 backdrop-blur-sm" />
+    <div className="min-h-screen flex items-center justify-center relative bg-gradient-to-br from-background via-background/95 to-background/90">
+      <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:60px_60px]" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background pointer-events-none" />
       
       <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
@@ -110,31 +110,35 @@ export default function AuthPage() {
         transition={{
           duration: 0.3,
           ease: [0, 0.71, 0.2, 1.01],
-          scale: {
-            type: "spring",
-            damping: 10,
-            stiffness: 100,
-            restDelta: 0.001
-          }
         }}
         className="w-full max-w-[400px] mx-4 relative z-10"
       >
-        <Card className="relative overflow-hidden backdrop-blur-xl bg-background/40 shadow-2xl border-muted/30">
-          <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-secondary/5 to-accent/5" />
-          
-          <CardHeader className="space-y-4 text-center pb-8 relative">
+        <Card className="border-2 border-primary/10 bg-background/80 backdrop-blur-xl shadow-2xl">
+          <CardHeader className="space-y-4 text-center pb-8">
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ duration: 0.4, delay: 0.1 }}
+              className="space-y-2"
             >
-              <CardTitle className="text-4xl font-bold tracking-tight">
-                <span className="inline-block bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
-                  {isLogin ? "Welcome Back" : "Create Account"}
-                </span>
+              <div className="relative mx-auto w-24 h-24">
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary to-primary/60 blur-lg opacity-50" />
+                <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center p-2">
+                  <Image
+                    src="/sonox.png"
+                    alt="Sonox Logo"
+                    width={80}
+                    height={80}
+                    className="object-contain"
+                    priority
+                  />
+                </div>
+              </div>
+              <CardTitle className="text-4xl font-bold tracking-tight bg-gradient-to-b from-foreground to-foreground/80 bg-clip-text text-transparent mt-6">
+                Welcome to Sonox
               </CardTitle>
-              <CardDescription className="text-lg font-medium text-muted-foreground pt-2">
-                {isLogin ? "Great to see you again!" : "Join our community today"}
+              <CardDescription className="text-lg font-medium pt-2 text-muted-foreground">
+                {isLogin ? "Sign in to continue chatting" : "Create your Sonox account"}
               </CardDescription>
             </motion.div>
 
@@ -145,7 +149,7 @@ export default function AuthPage() {
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg border border-destructive/20"
+                  className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg border border-destructive/20 font-medium"
                 >
                   {error}
                 </motion.div>
@@ -153,7 +157,7 @@ export default function AuthPage() {
             </AnimatePresence>
           </CardHeader>
 
-          <CardContent className="space-y-6 relative">
+          <CardContent className="space-y-6">
             <motion.form
               onSubmit={handleSubmit}
               className="space-y-4"
@@ -169,9 +173,7 @@ export default function AuthPage() {
                     exit={{ height: 0, opacity: 0 }}
                     className="space-y-2 overflow-hidden"
                   >
-                    <Label htmlFor="name" className="text-sm font-medium">
-                      Full Name
-                    </Label>
+                    <Label htmlFor="name" className="text-sm font-medium text-foreground/90">Full Name</Label>
                     <Input
                       id="name"
                       name="name"
@@ -179,20 +181,14 @@ export default function AuthPage() {
                       value={formData.name}
                       onChange={handleInputChange}
                       disabled={loading}
-                      className={cn(
-                        "h-11 bg-background/50 backdrop-blur-sm",
-                        "border-muted-foreground/20 focus-visible:border-primary",
-                        "transition-all duration-300"
-                      )}
+                      className="bg-background/50 border-primary/10 focus:border-primary/30 h-11"
                     />
                   </motion.div>
                 )}
               </AnimatePresence>
 
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">
-                  Email Address
-                </Label>
+                <Label htmlFor="email" className="text-sm font-medium text-foreground/90">Email Address</Label>
                 <Input
                   id="email"
                   name="email"
@@ -201,18 +197,12 @@ export default function AuthPage() {
                   value={formData.email}
                   onChange={handleInputChange}
                   disabled={loading}
-                  className={cn(
-                    "h-11 bg-background/50 backdrop-blur-sm",
-                    "border-muted-foreground/20 focus-visible:border-primary",
-                    "transition-all duration-300"
-                  )}
+                  className="bg-background/50 border-primary/10 focus:border-primary/30 h-11"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium">
-                  Password
-                </Label>
+                <Label htmlFor="password" className="text-sm font-medium text-foreground/90">Password</Label>
                 <Input
                   id="password"
                   name="password"
@@ -221,11 +211,7 @@ export default function AuthPage() {
                   value={formData.password}
                   onChange={handleInputChange}
                   disabled={loading}
-                  className={cn(
-                    "h-11 bg-background/50 backdrop-blur-sm",
-                    "border-muted-foreground/20 focus-visible:border-primary",
-                    "transition-all duration-300"
-                  )}
+                  className="bg-background/50 border-primary/10 focus:border-primary/30 h-11"
                 />
               </div>
 
@@ -233,13 +219,7 @@ export default function AuthPage() {
                 <Button
                   type="submit"
                   disabled={loading}
-                  className={cn(
-                    "w-full h-11 text-base font-medium",
-                    "bg-gradient-to-r from-primary to-primary/80",
-                    "hover:opacity-90 transition-all duration-300",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
-                    "shadow-lg shadow-primary/20"
-                  )}
+                  className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-medium h-11 shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5"
                 >
                   {loading ? (
                     <div className="flex items-center gap-2">
@@ -253,10 +233,10 @@ export default function AuthPage() {
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-muted-foreground/20" />
+                    <div className="w-full border-t border-primary/10" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background/60 backdrop-blur-sm px-2 text-muted-foreground">
+                    <span className="bg-background/80 backdrop-blur-xl px-2 text-muted-foreground font-medium">
                       Or continue with
                     </span>
                   </div>
@@ -265,39 +245,23 @@ export default function AuthPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={loading}
                   onClick={handleGoogleSignIn}
-                  disabled={loading}
-                  className={cn(
-                    "w-full h-11 gap-2 text-base font-medium",
-                    "bg-background/50 backdrop-blur-sm",
-                    "border-muted-foreground/20",
-                    "hover:bg-white/10 hover:border-muted-foreground/30",
-                    "transition-all duration-300"
-                  )}
+                  className="w-full border-primary/10 bg-background/50 hover:bg-background/80 font-medium h-11 hover:shadow-lg transition-all duration-200 hover:-translate-y-0.5"
                 >
-                  <FcGoogle className="w-5 h-5" />
-                  <span>Continue with Google</span>
+                  <FcGoogle className="w-5 h-5 mr-2" />
+                  Sign in with Google
                 </Button>
-              </div>
 
-              <div className="text-center text-sm text-muted-foreground">
-                {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLogin(!isLogin);
-                    setError("");
-                    setFormData({ email: "", password: "", name: "" });
-                  }}
-                  className={cn(
-                    "text-primary hover:underline font-medium",
-                    "disabled:opacity-50 transition-opacity",
-                    "focus:outline-none focus-visible:underline"
-                  )}
-                  disabled={loading}
-                >
-                  {isLogin ? "Sign up" : "Sign in"}
-                </button>
+                <div className="text-center text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setIsLogin(!isLogin)}
+                    className="text-primary hover:text-primary/90 hover:underline transition-colors font-medium"
+                  >
+                    {isLogin ? "Need an account? Sign up" : "Already have an account? Sign in"}
+                  </button>
+                </div>
               </div>
             </motion.form>
           </CardContent>

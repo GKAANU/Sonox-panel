@@ -8,6 +8,19 @@ import { motion } from "framer-motion"
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <Button variant="ghost" size="icon" className="relative w-10 h-10 rounded-full">
+        <Sun className="h-5 w-5" />
+      </Button>
+    )
+  }
 
   return (
     <Button

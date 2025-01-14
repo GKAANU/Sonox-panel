@@ -1,0 +1,12 @@
+specVersion: "v1beta"
+serviceId: "sonox-panel"
+location: "us-central1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "fdcdb"
+      cloudSql:
+        instanceId: "sonox-panel-fdc"
+      # schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]

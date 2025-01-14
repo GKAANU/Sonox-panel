@@ -1,222 +1,130 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useFriend } from "@/contexts/FriendContext";
-import { Check, X, UserPlus, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { UserPlus } from "lucide-react";
 
 export function FriendRequests() {
-  const { friendRequests, searchUsers, searchUserById, sendFriendRequest, acceptFriendRequest, rejectFriendRequest } = useFriend();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const { user } = useAuth();
+  const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [searchType, setSearchType] = useState<"name" | "id">("name");
-  const [error, setError] = useState("");
-  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-    
+  const handleAddFriend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !userId.trim()) return;
+
     try {
       setLoading(true);
-      setError("");
-      
-      if (searchType === "id") {
-        const user = await searchUserById(searchQuery.trim());
-        setSearchResults(user ? [user] : []);
-        if (!user) {
-          setError("User not found");
-        }
-      } else {
-        const results = await searchUsers(searchQuery);
-        setSearchResults(results);
-        if (results.length === 0) {
-          setError("No users found");
-        }
+
+      // Check if user exists
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("uid", "==", userId.trim()));
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        toast.error("User not found");
+        return;
       }
-    } catch (error: any) {
-      console.error('Search error:', error);
-      setError(error.message || "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleSendRequest = async (userId: string) => {
-    try {
-      setLoading(true);
-      await sendFriendRequest(userId);
-      setSentRequests(prev => new Set([...prev, userId]));
-    } catch (error: any) {
-      console.error('Send request error:', error);
-      setError(error.message || "Failed to send friend request");
-    } finally {
-      setLoading(false);
-    }
-  };
+      const friendDoc = querySnapshot.docs[0];
+      const friendData = friendDoc.data();
 
-  const handleAcceptRequest = async (requestId: string) => {
-    try {
-      setLoading(true);
-      await acceptFriendRequest(requestId);
-      // Request will be automatically removed from the list due to the Firebase listener
-    } catch (error: any) {
-      console.error('Accept request error:', error);
-      setError(error.message || "Failed to accept friend request");
+      // Don't allow adding yourself
+      if (friendData.uid === user.uid) {
+        toast.error("You can't add yourself");
+        return;
+      }
+
+      // Check if chat already exists
+      const chatsRef = collection(db, "chats");
+      const chatQuery = query(
+        chatsRef,
+        where("participants", "array-contains", user.uid)
+      );
+      const chatSnapshot = await getDocs(chatQuery);
+      
+      const chatExists = chatSnapshot.docs.some(doc => {
+        const data = doc.data();
+        return data.participants.includes(friendData.uid);
+      });
+
+      if (chatExists) {
+        toast.error("Chat already exists with this user");
+        return;
+      }
+
+      // Create new chat
+      await addDoc(collection(db, "chats"), {
+        participants: [user.uid, friendData.uid],
+        isGroup: false,
+        participantDetails: {
+          [user.uid]: {
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            email: user.email
+          },
+          [friendData.uid]: {
+            displayName: friendData.displayName,
+            photoURL: friendData.photoURL,
+            email: friendData.email
+          }
+        }
+      });
+
+      toast.success("Friend added successfully");
+      setUserId("");
+    } catch (error) {
+      console.error("Error adding friend:", error);
+      toast.error("Failed to add friend");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Tabs defaultValue="search" className="w-full">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="search">Search</TabsTrigger>
-        <TabsTrigger value="requests">
-          Requests
-          {friendRequests.length > 0 && (
-            <span className="ml-2 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-              {friendRequests.length}
-            </span>
-          )}
-        </TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="search" className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Button
-              variant={searchType === "name" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSearchType("name")}
-              className="hover:opacity-90 transition-opacity"
-            >
-              Search by Name
-            </Button>
-            <Button
-              variant={searchType === "id" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSearchType("id")}
-              className="hover:opacity-90 transition-opacity"
-            >
-              Search by ID
-            </Button>
-          </div>
-          
-          <div className="flex gap-2">
-            <div className="flex-1 space-y-1">
-              <Label>
-                {searchType === "id" ? "Enter User ID" : "Search by Name"}
-              </Label>
-              <Input
-                placeholder={searchType === "id" ? "Enter user ID..." : "Search users..."}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              />
-            </div>
-            <Button 
-              onClick={handleSearch} 
-              disabled={loading}
-              className="self-end hover:opacity-90 transition-opacity"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-          </div>
+    <div className="space-y-6">
+      <div className="text-center space-y-2">
+        <div className="mx-auto w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+          <UserPlus className="w-6 h-6 text-primary" />
         </div>
+        <p className="text-sm text-muted-foreground">
+          Add friends using their User ID. You can find your ID in Profile Settings.
+        </p>
+      </div>
 
-        {error && (
-          <div className="text-sm text-red-500 text-center">
-            {error}
-          </div>
-        )}
-
-        <ScrollArea className="h-[300px]">
-          {searchResults.map((user) => (
-            <div
-              key={user.id}
-              className="flex items-center justify-between p-2 hover:bg-accent rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Avatar>
-                  <AvatarImage src={user.photoURL} />
-                  <AvatarFallback>{user.displayName?.[0]}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="font-medium">{user.displayName}</div>
-                  <div className="text-sm text-muted-foreground">{user.email}</div>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleSendRequest(user.id)}
-                disabled={loading || sentRequests.has(user.id)}
-                className={`transition-all duration-200 ${
-                  sentRequests.has(user.id)
-                    ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50'
-                    : 'hover:bg-green-100 dark:hover:bg-green-900/30'
-                }`}
-              >
-                {sentRequests.has(user.id) ? (
-                  <Check className="h-4 w-4 text-green-500" />
-                ) : (
-                  <UserPlus className="h-4 w-4" />
-                )}
-              </Button>
+      <form onSubmit={handleAddFriend} className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="userId" className="text-sm font-medium text-foreground/80">Friend's User ID</Label>
+          <Input
+            id="userId"
+            placeholder="Enter friend's User ID"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            disabled={loading}
+            className="bg-muted/30 border border-muted/50"
+          />
+        </div>
+        <Button 
+          type="submit" 
+          className="w-full bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200 hover:-translate-y-0.5" 
+          disabled={loading}
+        >
+          {loading ? (
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              <span>Adding Friend...</span>
             </div>
-          ))}
-        </ScrollArea>
-      </TabsContent>
-
-      <TabsContent value="requests">
-        <ScrollArea className="h-[300px]">
-          {friendRequests.map((request) => (
-            <div
-              key={request.id}
-              className="flex items-center justify-between p-2 hover:bg-accent rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Avatar>
-                  <AvatarImage src={request.senderPhoto || undefined} />
-                  <AvatarFallback>{request.senderName?.[0]}</AvatarFallback>
-                </Avatar>
-                <div className="font-medium">{request.senderName}</div>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleAcceptRequest(request.id)}
-                  disabled={loading}
-                  className="hover:bg-green-100 dark:hover:bg-green-900/30 transition-all duration-200"
-                >
-                  <Check className="h-4 w-4 text-green-500" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => rejectFriendRequest(request.id)}
-                  disabled={loading}
-                  className="hover:bg-red-100 dark:hover:bg-red-900/30 transition-all duration-200"
-                >
-                  <X className="h-4 w-4 text-red-500" />
-                </Button>
-              </div>
-            </div>
-          ))}
-          {friendRequests.length === 0 && (
-            <div className="text-center text-muted-foreground p-4">
-              No pending friend requests
-            </div>
+          ) : (
+            "Add Friend"
           )}
-        </ScrollArea>
-      </TabsContent>
-    </Tabs>
+        </Button>
+      </form>
+    </div>
   );
 } 

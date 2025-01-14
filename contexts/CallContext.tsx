@@ -24,6 +24,8 @@ interface CallContextType {
 
 const CallContext = createContext<CallContextType | null>(null);
 
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [call, setCall] = useState({
@@ -50,7 +52,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
       try {
         if (!socketRef.current) {
-          socketRef.current = io('http://localhost:3001', {
+          socketRef.current = io(SOCKET_URL, {
             transports: ['websocket'],
             upgrade: false,
             reconnection: true,
