@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 import { db } from '@/lib/firebase';
 import {
   collection,
-  query,
+  query as firestoreQuery,
   where,
   onSnapshot,
   addDoc,
@@ -15,7 +15,9 @@ import {
   getDocs,
   writeBatch,
   orderBy,
-  limit
+  limit,
+  QueryDocumentSnapshot,
+  DocumentData
 } from 'firebase/firestore';
 import { Message, Chat } from '@/types/chat';
 import { toast } from 'react-hot-toast';
@@ -40,7 +42,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
+    const q = firestoreQuery(
       collection(db, 'chats'),
       where('participants', 'array-contains', user.uid)
     );
@@ -61,7 +63,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     const unsubscribeMessages = userChats.map(chat => {
-      const q = query(
+      const q = firestoreQuery(
         collection(db, `chats/${chat.id}/messages`),
         orderBy('timestamp', 'asc')
       );
@@ -123,22 +125,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const searchUsers = async (query: string) => {
-    if (!query.trim()) return [];
+  const searchUsers = async (searchQuery: string) => {
+    if (!searchQuery.trim()) return [];
     
     try {
       const usersRef = collection(db, 'users');
-      const q = query.toLowerCase();
+      const q = searchQuery.toLowerCase();
       
       // Email ile arama
-      const emailQuery = query(usersRef, 
+      const emailQuery = firestoreQuery(usersRef, 
         where('email', '>=', q),
         where('email', '<=', q + '\uf8ff'),
         limit(10)
       );
       
       // Kullanıcı ID ile arama
-      const idQuery = query(usersRef,
+      const idQuery = firestoreQuery(usersRef,
         where('uid', '==', q)
       );
       
@@ -147,15 +149,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         getDocs(idQuery)
       ]);
       
-      const results = new Set();
+      const results = new Set<DocumentData>();
       
-      emailResults.forEach(doc => {
+      emailResults.forEach((doc: QueryDocumentSnapshot) => {
         if (doc.id !== user?.uid) {
           results.add({ id: doc.id, ...doc.data() });
         }
       });
       
-      idResults.forEach(doc => {
+      idResults.forEach((doc: QueryDocumentSnapshot) => {
         if (doc.id !== user?.uid) {
           results.add({ id: doc.id, ...doc.data() });
         }
