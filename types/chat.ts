@@ -3,6 +3,8 @@ export interface Message {
   text: string;
   senderId: string;
   timestamp: any;
+  read?: boolean;
+  delivered?: boolean;
 }
 
 export interface Chat {
