@@ -1,19 +1,12 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
+"use client";
+
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ChatProvider } from "@/contexts/ChatContext";
+import { CallProvider } from "@/contexts/CallContext";
 import { FriendProvider } from "@/contexts/FriendContext";
-import { CallProvider } from "@/components/call/CallProvider";
 import { Toaster } from "sonner";
-
-const inter = Inter({ subsets: ["latin"] });
-
-export const metadata: Metadata = {
-  title: "Sonox Chat",
-  description: "Real-time chat application with video calls",
-};
+import "./globals.css";
 
 export default function RootLayout({
   children,
@@ -22,7 +15,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <head>
+        <title>Sonox Chat</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -33,8 +30,8 @@ export default function RootLayout({
             <FriendProvider>
               <ChatProvider>
                 <CallProvider>
-                  <Toaster richColors position="top-right" />
                   {children}
+                  <Toaster position="top-center" expand={true} richColors />
                 </CallProvider>
               </ChatProvider>
             </FriendProvider>

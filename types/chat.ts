@@ -2,22 +2,21 @@ export interface Message {
   id: string;
   text: string;
   senderId: string;
-  senderName: string;
   timestamp: any;
 }
 
 export interface Chat {
   id: string;
   participants: string[];
-  lastMessage?: string;
   isGroup: boolean;
   groupName?: string;
-  groupPhoto?: string;
+  lastMessage?: string;
   participantDetails: {
     [key: string]: {
       displayName: string;
       photoURL: string | null;
-    }
+      email: string;
+    };
   };
 }
 

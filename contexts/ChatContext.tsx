@@ -1,228 +1,136 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from 'react';
-import { 
+import { createContext, useContext, useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
+import { db } from '@/lib/firebase';
+import {
   collection,
   query,
-  orderBy,
+  where,
   onSnapshot,
   addDoc,
   serverTimestamp,
-  where,
-  getDocs,
-  getDoc,
   doc,
-  DocumentData,
-  DocumentReference,
-  updateDoc,
-  DocumentSnapshot
+  deleteDoc,
+  getDocs,
+  writeBatch,
+  orderBy
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { useAuth } from './AuthContext';
-import { Chat, Message, UserData, ChatResult } from '@/types/chat';
+import { Message, Chat } from '@/types/chat';
 
 interface ChatContextType {
-  currentChat: Chat | undefined;
   messages: Message[];
-  sendMessage: (text: string) => Promise<void>;
-  setCurrentChat: (chat: Chat | undefined) => void;
-  createGroupChat: (name: string, participants: string[]) => Promise<void>;
   userChats: Chat[];
+  sendMessage: (chatId: string, text: string) => Promise<void>;
+  deleteMessages: (chatId: string) => Promise<void>;
+  deleteFriend: (chatId: string) => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
 
-export const useChat = () => {
-  const context = useContext(ChatContext);
-  if (!context) {
-    throw new Error('useChat must be used within a ChatProvider');
-  }
-  return context;
-};
-
-export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
-  const [currentChat, setCurrentChat] = useState<Chat | undefined>(undefined);
+export function ChatProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [userChats, setUserChats] = useState<Chat[]>([]);
-  const { user } = useAuth();
 
+  // Listen for user's chats
   useEffect(() => {
     if (!user) return;
 
-    const friendsQuery = query(
-      collection(db, 'friends'),
+    const q = query(
+      collection(db, 'chats'),
       where('participants', 'array-contains', user.uid)
     );
 
-    const unsubscribe = onSnapshot(friendsQuery, async (snapshot) => {
-      const chatsData = await Promise.all(
-        snapshot.docs.map(async (docSnapshot) => {
-          const chatData = docSnapshot.data();
-          const participantDetails: { [key: string]: any } = {};
-          
-          for (const participantId of chatData.participants) {
-            if (participantId !== user.uid) {
-              const userDocRef = doc(db, 'users', participantId);
-              const userDoc = await getDoc(userDocRef);
-              if (userDoc.exists()) {
-                const userData = userDoc.data() as UserData;
-                participantDetails[participantId] = {
-                  displayName: userData.displayName,
-                  photoURL: userData.photoURL
-                };
-              }
-            }
-          }
-
-          return {
-            id: docSnapshot.id,
-            participants: chatData.participants,
-            isGroup: chatData.isGroup || false,
-            groupName: chatData.groupName,
-            lastMessage: chatData.lastMessage,
-            participantDetails
-          } as Chat;
-        })
-      );
-      setUserChats(chatsData);
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const chats = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Chat[];
+      setUserChats(chats);
     });
 
     return () => unsubscribe();
   }, [user]);
 
+  // Listen for messages in current chat
   useEffect(() => {
-    if (!currentChat) return;
+    if (!user) return;
 
-    const messagesQuery = query(
-      collection(db, `chats/${currentChat.id}/messages`),
-      orderBy('timestamp', 'asc')
-    );
-
-    const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-      const messages: Message[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        messages.push({
+    const unsubscribeMessages = userChats.map(chat => {
+      const q = query(
+        collection(db, `chats/${chat.id}/messages`),
+        orderBy('timestamp', 'asc')
+      );
+      
+      return onSnapshot(q, (snapshot) => {
+        const chatMessages = snapshot.docs.map(doc => ({
           id: doc.id,
-          text: data.text,
-          senderId: data.senderId,
-          timestamp: data.timestamp,
-          senderName: data.senderName
+          ...doc.data()
+        })) as Message[];
+        
+        setMessages(prev => {
+          const otherChatMessages = prev.filter(msg => !chatMessages.find(cm => cm.id === msg.id));
+          return [...otherChatMessages, ...chatMessages];
         });
       });
-      setMessages(messages);
     });
 
     return () => {
-      unsubscribe();
-      setMessages([]);
+      unsubscribeMessages.forEach(unsubscribe => unsubscribe());
     };
-  }, [currentChat]);
+  }, [user, userChats]);
 
-  const sendMessage = async (text: string): Promise<void> => {
-    if (!currentChat || !user) return;
+  const sendMessage = async (chatId: string, text: string) => {
+    if (!user) return;
 
     try {
-      const chatRef = doc(db, 'chats', currentChat.id);
-      const chatDoc = await getDoc(chatRef);
-      
-      if (!chatDoc.exists()) {
-        await updateDoc(chatRef, {
-          participants: currentChat.participants,
-          isGroup: currentChat.isGroup || false,
-          groupName: currentChat.groupName || null,
-          lastMessage: text,
-          lastMessageTimestamp: serverTimestamp()
-        });
-      }
-
-      await addDoc(collection(db, `chats/${currentChat.id}/messages`), {
+      await addDoc(collection(db, `chats/${chatId}/messages`), {
         text,
         senderId: user.uid,
-        senderName: user.displayName,
         timestamp: serverTimestamp()
       });
-
-      const friendRef = doc(db, 'friends', currentChat.id);
-      await updateDoc(friendRef, {
-        lastMessage: text,
-        lastMessageTimestamp: serverTimestamp()
-      });
-
     } catch (error) {
       console.error('Error sending message:', error);
-      throw error;
     }
   };
 
-  const createGroupChat = async (name: string, participants: string[]) => {
-    if (!user) return;
-    
+  const deleteMessages = async (chatId: string) => {
     try {
-      // Create group chat document
-      const groupChatRef = await addDoc(collection(db, 'chats'), {
-        isGroup: true,
-        groupName: name,
-        participants: [...participants, user.uid],
-        createdBy: user.uid,
-        createdAt: serverTimestamp(),
-        lastMessage: '',
-        lastMessageTimestamp: serverTimestamp()
+      const messagesRef = collection(db, `chats/${chatId}/messages`);
+      const messagesSnapshot = await getDocs(messagesRef);
+      const batch = writeBatch(db);
+      
+      messagesSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
       });
-
-      // Get participant details
-      const participantDetails: { [key: string]: any } = {};
-      for (const participantId of [...participants, user.uid]) {
-        const userDoc = await getDoc(doc(db, 'users', participantId));
-        if (userDoc.exists()) {
-          participantDetails[participantId] = {
-            displayName: userDoc.data().displayName,
-            photoURL: userDoc.data().photoURL
-          };
-        }
-      }
-
-      // Create group in friends collection for sidebar listing
-      await addDoc(collection(db, 'friends'), {
-        id: groupChatRef.id,
-        isGroup: true,
-        groupName: name,
-        participants: [...participants, user.uid],
-        participantDetails,
-        createdBy: user.uid,
-        createdAt: serverTimestamp(),
-        lastMessage: '',
-        lastMessageTimestamp: serverTimestamp()
-      });
-
-      // Set current chat to the new group
-      setCurrentChat({
-        id: groupChatRef.id,
-        isGroup: true,
-        groupName: name,
-        participants: [...participants, user.uid],
-        participantDetails,
-        lastMessage: ''
-      });
-
+      
+      await batch.commit();
     } catch (error) {
-      console.error('Error creating group chat:', error);
-      throw error;
+      console.error('Error deleting messages:', error);
     }
   };
 
-  const value = {
-    currentChat,
-    messages,
-    sendMessage,
-    setCurrentChat,
-    createGroupChat,
-    userChats
+  const deleteFriend = async (chatId: string) => {
+    try {
+      await deleteDoc(doc(db, 'chats', chatId));
+      setMessages(prev => prev.filter(msg => msg.senderId !== chatId));
+    } catch (error) {
+      console.error('Error deleting friend:', error);
+    }
   };
 
   return (
-    <ChatContext.Provider value={value}>
+    <ChatContext.Provider value={{ messages, userChats, sendMessage, deleteMessages, deleteFriend }}>
       {children}
     </ChatContext.Provider>
   );
-}; 
+}
+
+export function useChat() {
+  const context = useContext(ChatContext);
+  if (!context) {
+    throw new Error('useChat must be used within a ChatProvider');
+  }
+  return context;
+} 

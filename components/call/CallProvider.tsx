@@ -70,6 +70,7 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signal: callerSignal,
         isVideo
       });
+      toast.info('Incoming call...');
     });
 
     return () => {
@@ -137,12 +138,14 @@ export const CallProvider: React.FC<{ children: React.ReactNode }> = ({ children
       peer.on('error', (err) => {
         console.error('Peer error:', err);
         endCall();
+        toast.error('Call failed');
       });
 
       socketRef.current?.on('callAccepted', (signal) => {
         setCallAccepted(true);
         setIsCalling(false);
         peer.signal(signal);
+        toast.success('Call connected');
       });
 
       socketRef.current?.on('callRejected', () => {
