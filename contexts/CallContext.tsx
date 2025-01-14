@@ -43,45 +43,71 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const socketRef = useRef<Socket>();
 
   useEffect(() => {
-    if (!user) return;
+    let mounted = true;
 
-    try {
-      socketRef.current = io('http://localhost:3001');
-      
-      socketRef.current.on('me', (id) => setMe(id));
-      
-      socketRef.current.on('callUser', ({ from, signal, isVideo }) => {
-        setCall({
-          isReceivingCall: true,
-          from,
-          isVideo
-        });
-        setCallSignal(signal);
-        toast.info('Incoming call...', {
-          action: {
-            label: 'Answer',
-            onClick: () => acceptCall()
-          }
-        });
-      });
+    const initializeSocket = async () => {
+      if (!user || !mounted) return;
 
-      socketRef.current.on('callEnded', () => {
-        endCall();
-        toast.info('Call ended');
-      });
+      try {
+        if (!socketRef.current) {
+          socketRef.current = io('http://localhost:3001', {
+            transports: ['websocket'],
+            upgrade: false,
+            reconnection: true,
+            reconnectionAttempts: 5
+          });
 
-      return () => {
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
+          socketRef.current.on('connect_error', (error) => {
+            console.error('Socket connection error:', error);
+          });
+
+          socketRef.current.on('me', (id) => {
+            if (mounted) setMe(id);
+          });
+
+          socketRef.current.on('callUser', ({ from, signal, isVideo }) => {
+            if (mounted) {
+              setCall({
+                isReceivingCall: true,
+                from,
+                isVideo
+              });
+              setCallSignal(signal);
+              toast.info('Incoming call...', {
+                action: {
+                  label: 'Answer',
+                  onClick: () => acceptCall()
+                }
+              });
+            }
+          });
+
+          socketRef.current.on('callEnded', () => {
+            if (mounted) {
+              endCall();
+              toast.info('Call ended');
+            }
+          });
         }
-        if (socketRef.current) {
-          socketRef.current.disconnect();
+      } catch (error) {
+        console.error('Socket initialization error:', error);
+        if (mounted) {
+          toast.error('Failed to connect to call service');
         }
-      };
-    } catch (error) {
-      console.error('Socket connection error:', error);
-      toast.error('Failed to connect to call service');
-    }
+      }
+    };
+
+    initializeSocket();
+
+    return () => {
+      mounted = false;
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
   }, [user]);
 
   const callUser = async (userId: string, isVideo: boolean) => {
