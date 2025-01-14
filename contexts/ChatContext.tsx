@@ -14,9 +14,11 @@ import {
   deleteDoc,
   getDocs,
   writeBatch,
-  orderBy
+  orderBy,
+  limit
 } from 'firebase/firestore';
 import { Message, Chat } from '@/types/chat';
+import { toast } from 'react-hot-toast';
 
 interface ChatContextType {
   messages: Message[];
@@ -24,6 +26,7 @@ interface ChatContextType {
   sendMessage: (chatId: string, text: string) => Promise<void>;
   deleteMessages: (chatId: string) => Promise<void>;
   deleteFriend: (chatId: string) => Promise<void>;
+  searchUsers: (query: string) => Promise<any[]>;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -120,8 +123,54 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const searchUsers = async (query: string) => {
+    if (!query.trim()) return [];
+    
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query.toLowerCase();
+      
+      // Email ile arama
+      const emailQuery = query(usersRef, 
+        where('email', '>=', q),
+        where('email', '<=', q + '\uf8ff'),
+        limit(10)
+      );
+      
+      // Kullanıcı ID ile arama
+      const idQuery = query(usersRef,
+        where('uid', '==', q)
+      );
+      
+      const [emailResults, idResults] = await Promise.all([
+        getDocs(emailQuery),
+        getDocs(idQuery)
+      ]);
+      
+      const results = new Set();
+      
+      emailResults.forEach(doc => {
+        if (doc.id !== user?.uid) {
+          results.add({ id: doc.id, ...doc.data() });
+        }
+      });
+      
+      idResults.forEach(doc => {
+        if (doc.id !== user?.uid) {
+          results.add({ id: doc.id, ...doc.data() });
+        }
+      });
+      
+      return Array.from(results);
+    } catch (error) {
+      console.error('Error searching users:', error);
+      toast.error('Failed to search users');
+      return [];
+    }
+  };
+
   return (
-    <ChatContext.Provider value={{ messages, userChats, sendMessage, deleteMessages, deleteFriend }}>
+    <ChatContext.Provider value={{ messages, userChats, sendMessage, deleteMessages, deleteFriend, searchUsers }}>
       {children}
     </ChatContext.Provider>
   );
