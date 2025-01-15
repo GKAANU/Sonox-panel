@@ -18,6 +18,11 @@ const nextConfig = {
     });
     return config;
   },
+  poweredByHeader: false,
+  compress: true,
+  productionBrowserSourceMaps: false,
+  optimizeFonts: true,
+  swcMinify: true,
 }
 
 export default nextConfig;
