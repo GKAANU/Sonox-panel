@@ -24,8 +24,12 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       transports: ['websocket'],
       path: '/socket.io/',
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      autoConnect: true,
+      forceNew: true
     });
 
     socketInstance.on('connect', () => {
@@ -36,11 +40,19 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     socketInstance.on('connect_error', (error) => {
       console.error('Socket connection error:', error);
       setIsConnected(false);
+      // Try to reconnect after error
+      setTimeout(() => {
+        socketInstance.connect();
+      }, 5000);
     });
 
     socketInstance.on('disconnect', () => {
       console.log('Socket disconnected');
       setIsConnected(false);
+      // Try to reconnect after disconnect
+      setTimeout(() => {
+        socketInstance.connect();
+      }, 5000);
     });
 
     setSocket(socketInstance);
