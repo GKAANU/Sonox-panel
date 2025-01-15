@@ -2,10 +2,6 @@
   "version": 2,
   "builds": [
     {
-      "src": "server/index.ts",
-      "use": "@vercel/node"
-    },
-    {
       "src": "package.json",
       "use": "@vercel/next"
     }
@@ -13,11 +9,11 @@
   "routes": [
     {
       "src": "/socket.io/(.*)",
-      "dest": "server/index.ts"
+      "dest": "https://websocket-server-sonox-5b86c53b93d9.herokuapp.com/socket.io/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "/"
+      "dest": "/$1"
     }
   ]
 } 

@@ -7,7 +7,7 @@ const nextConfig = {
     return [
       {
         source: '/socket.io/:path*',
-        destination: process.env.NEXT_PUBLIC_SOCKET_URL + '/socket.io/:path*',
+        destination: 'https://websocket-server-sonox-5b86c53b93d9.herokuapp.com/socket.io/:path*',
       },
     ]
   },
@@ -18,11 +18,7 @@ const nextConfig = {
     });
     return config;
   },
-  poweredByHeader: false,
-  compress: true,
-  productionBrowserSourceMaps: false,
-  optimizeFonts: true,
-  swcMinify: true,
+  output: 'standalone',
 }
 
 export default nextConfig;
