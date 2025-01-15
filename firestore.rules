@@ -14,8 +14,9 @@ service cloud.firestore {
     // Users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isOwner(userId);
+      // Allow creation and update for authenticated users
+      allow create, update: if isAuthenticated();
+      allow delete: if isOwner(userId);
     }
     
     // Chats collection
