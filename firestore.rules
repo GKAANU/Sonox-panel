@@ -2,39 +2,8 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    // Users collection
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      // Allow creation and update for authenticated users
-      allow create, update: if isAuthenticated();
-      allow delete: if isOwner(userId);
-    }
-    
-    // Chats collection
-    match /chats/{chatId} {
-      allow read, write: if isAuthenticated();
-      
-      match /messages/{messageId} {
-        allow read, write: if isAuthenticated();
-      }
-      
-      match /participants/{participantId} {
-        allow read, write: if isAuthenticated();
-      }
-    }
-    
-    // Friend requests collection
-    match /friendRequests/{requestId} {
-      allow read, write: if isAuthenticated();
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }

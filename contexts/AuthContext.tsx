@@ -46,7 +46,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         photoURL: user.photoURL || '',
         createdAt: serverTimestamp(),
         lastSeen: serverTimestamp(),
-        status: 'online'
+        status: 'online',
+        friends: [],
+        friendRequests: []
       };
 
       if (!userSnap.exists()) {
@@ -62,36 +64,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error('Error managing user document:', error);
-      toast.error('Error creating user profile');
+      // Don't throw the error here, just log it
     }
   };
 
   useEffect(() => {
-    // Set persistence to LOCAL
-    setPersistence(auth, browserLocalPersistence)
-      .then(() => {
+    let unsubscribe: () => void;
+
+    const initializeAuth = async () => {
+      try {
+        await setPersistence(auth, browserLocalPersistence);
         console.log('Persistence set to LOCAL');
-      })
-      .catch((error) => {
-        console.error('Error setting persistence:', error);
-      });
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log('Auth state changed:', user?.email);
-      setUser(user);
-      
-      if (user) {
-        try {
-          await createUserDocument(user);
-        } catch (error) {
-          console.error('Error in auth state change:', error);
-        }
+        unsubscribe = onAuthStateChanged(auth, async (user) => {
+          console.log('Auth state changed:', user?.email);
+          setUser(user);
+          
+          if (user) {
+            try {
+              await createUserDocument(user);
+            } catch (error) {
+              console.error('Error in auth state change:', error);
+            }
+          }
+          
+          setLoading(false);
+        });
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        setLoading(false);
       }
-      
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    initializeAuth();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   const signOut = async () => {
@@ -120,11 +131,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       const result = await signInWithPopup(auth, provider);
       console.log('Google sign in successful:', result.user.email);
+      
+      // Wait for user document creation
       await createUserDocument(result.user);
       toast.success('Signed in successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing in with Google:', error);
-      toast.error('Error signing in with Google');
+      toast.error(error.message || 'Error signing in with Google');
       throw error;
     }
   };
@@ -134,9 +147,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const result = await signInWithEmailAndPassword(auth, email, password);
       await createUserDocument(result.user);
       toast.success('Signed in successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing in:', error);
-      toast.error('Error signing in');
+      toast.error(error.message || 'Error signing in');
       throw error;
     }
   };
@@ -147,9 +160,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await updateProfile(user, { displayName: name });
       await createUserDocument(user);
       toast.success('Account created successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error signing up:', error);
-      toast.error('Error creating account');
+      toast.error(error.message || 'Error creating account');
       throw error;
     }
   };
