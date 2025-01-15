@@ -11,7 +11,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
@@ -31,23 +31,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const createUserDocument = async (user: User) => {
     if (!user) return;
 
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
 
-    if (!userSnap.exists()) {
-      try {
+      const userData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || 'User',
+        photoURL: user.photoURL || '',
+        createdAt: serverTimestamp(),
+        lastSeen: serverTimestamp(),
+        status: 'online'
+      };
+
+      if (!userSnap.exists()) {
+        await setDoc(userRef, userData);
+      } else {
+        // Update lastSeen and status for existing users
         await setDoc(userRef, {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          createdAt: new Date().toISOString(),
-          lastSeen: new Date().toISOString(),
+          lastSeen: serverTimestamp(),
           status: 'online'
-        });
-      } catch (error) {
-        console.error('Error creating user document:', error);
+        }, { merge: true });
       }
+    } catch (error) {
+      console.error('Error managing user document:', error);
     }
   };
 
@@ -67,7 +75,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (user) {
         const userRef = doc(db, 'users', user.uid);
-        await setDoc(userRef, { status: 'offline', lastSeen: new Date().toISOString() }, { merge: true });
+        await setDoc(userRef, { 
+          status: 'offline', 
+          lastSeen: serverTimestamp() 
+        }, { merge: true });
       }
       await firebaseSignOut(auth);
     } catch (error) {
