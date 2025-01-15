@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { 
   User, 
   signOut as firebaseSignOut, 
@@ -11,6 +11,7 @@ import {
   signInWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
@@ -27,9 +28,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const createUserDocument = async (user: User) => {
+    if (!user) return;
+
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      try {
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          createdAt: new Date().toISOString(),
+          lastSeen: new Date().toISOString(),
+          status: 'online'
+        });
+      } catch (error) {
+        console.error('Error creating user document:', error);
+      }
+    }
+  };
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setUser(user);
+      if (user) {
+        await createUserDocument(user);
+      }
       setLoading(false);
     });
 
@@ -38,6 +65,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+        await setDoc(userRef, { status: 'offline', lastSeen: new Date().toISOString() }, { merge: true });
+      }
       await firebaseSignOut(auth);
     } catch (error) {
       console.error('Error signing out:', error);
@@ -47,7 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      await createUserDocument(result.user);
     } catch (error) {
       console.error('Error signing in with Google:', error);
       throw error;
@@ -56,7 +88,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      await createUserDocument(result.user);
     } catch (error) {
       console.error('Error signing in:', error);
       throw error;
@@ -67,6 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(user, { displayName: name });
+      await createUserDocument(user);
     } catch (error) {
       console.error('Error signing up:', error);
       throw error;
