@@ -1,13 +1,13 @@
-import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import cors from 'cors';
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
 
 const app = express();
 app.use(cors());
 
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
+const server = http.createServer(app);
+const io = new Server(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' 
       ? 'https://sonox.kaanuzun.com'
@@ -16,45 +16,40 @@ const io = new Server(httpServer, {
   },
 });
 
-// Socket.IO event handlers
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // Join a room
-  socket.on('join_room', (roomId: string) => {
+  socket.on('join_room', (roomId) => {
     socket.join(roomId);
     console.log(`User ${socket.id} joined room ${roomId}`);
   });
 
-  // Handle messages
-  socket.on('send_message', (data: { room: string; message: any }) => {
+  socket.on('send_message', (data) => {
     socket.to(data.room).emit('receive_message', data);
   });
 
-  // Handle video calls
-  socket.on('start_call', ({ to, offer }: { to: string; offer: any }) => {
+  socket.on('start_call', ({ to, offer }) => {
     io.to(to).emit('call_received', { from: socket.id, offer });
   });
 
-  socket.on('call_accepted', ({ to, answer }: { to: string; answer: any }) => {
+  socket.on('call_accepted', ({ to, answer }) => {
     io.to(to).emit('call_accepted', { from: socket.id, answer });
   });
 
-  socket.on('ice_candidate', ({ to, candidate }: { to: string; candidate: any }) => {
+  socket.on('ice_candidate', ({ to, candidate }) => {
     io.to(to).emit('ice_candidate', { from: socket.id, candidate });
   });
 
-  socket.on('end_call', ({ to }: { to: string }) => {
+  socket.on('end_call', ({ to }) => {
     io.to(to).emit('call_ended', { from: socket.id });
   });
 
-  // Handle disconnection
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
 });
 
 const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 }); 
