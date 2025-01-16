@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, enableMultiTabIndexedDbPersistence } from 'firebase/firestore';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -18,11 +18,23 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 
-// Enable Firestore persistence
+// Set auth persistence
 if (typeof window !== 'undefined') {
-  enableMultiTabIndexedDbPersistence(db)
+  setPersistence(auth, browserLocalPersistence)
+    .then(() => {
+      console.log('Auth persistence set to LOCAL');
+    })
+    .catch((error) => {
+      console.error('Error setting auth persistence:', error);
+    });
+
+  // Enable Firestore persistence
+  enableIndexedDbPersistence(db)
+    .then(() => {
+      console.log('Firestore persistence enabled');
+    })
     .catch((err) => {
-      console.error('Error enabling persistence:', err);
+      console.error('Error enabling Firestore persistence:', err);
       if (err.code === 'failed-precondition') {
         console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
       } else if (err.code === 'unimplemented') {

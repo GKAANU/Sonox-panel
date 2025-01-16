@@ -12,10 +12,12 @@ import {
   updateProfile,
   onAuthStateChanged,
   setPersistence,
-  browserLocalPersistence
+  browserLocalPersistence,
+  getAuth
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -31,6 +33,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   const createUserDocument = async (user: User) => {
     if (!user) return;
@@ -69,41 +72,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    let unsubscribe: () => void;
-
-    const initializeAuth = async () => {
+    const initAuth = async () => {
       try {
+        // Set persistence first
         await setPersistence(auth, browserLocalPersistence);
-        console.log('Persistence set to LOCAL');
-
-        unsubscribe = onAuthStateChanged(auth, async (user) => {
-          console.log('Auth state changed:', user?.email);
-          setUser(user);
-          
-          if (user) {
-            try {
-              await createUserDocument(user);
-            } catch (error) {
-              console.error('Error in auth state change:', error);
-            }
-          }
-          
-          setLoading(false);
-        });
+        console.log('Auth persistence set to LOCAL');
       } catch (error) {
-        console.error('Error initializing auth:', error);
-        setLoading(false);
+        console.error('Error setting persistence:', error);
       }
     };
 
-    initializeAuth();
+    initAuth();
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('Auth state changed:', user?.email);
+      
+      if (user) {
+        setUser(user);
+        try {
+          await createUserDocument(user);
+          // Only redirect if we're on the login page
+          if (window.location.pathname === '/') {
+            router.push('/chat');
+          }
+        } catch (error) {
+          console.error('Error in auth state change:', error);
+        }
+      } else {
+        setUser(null);
+        // Only redirect if we're not already on the login page
+        if (window.location.pathname !== '/') {
+          router.push('/');
+        }
       }
-    };
-  }, []);
+      
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [router]);
 
   const signOut = async () => {
     try {
@@ -115,6 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }, { merge: true });
       }
       await firebaseSignOut(auth);
+      router.push('/');
       toast.success('Signed out successfully');
     } catch (error) {
       console.error('Error signing out:', error);
@@ -134,6 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Wait for user document creation
       await createUserDocument(result.user);
+      router.push('/chat');
       toast.success('Signed in successfully');
     } catch (error: any) {
       console.error('Error signing in with Google:', error);
@@ -146,6 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
       await createUserDocument(result.user);
+      router.push('/chat');
       toast.success('Signed in successfully');
     } catch (error: any) {
       console.error('Error signing in:', error);
@@ -159,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(user, { displayName: name });
       await createUserDocument(user);
+      router.push('/chat');
       toast.success('Account created successfully');
     } catch (error: any) {
       console.error('Error signing up:', error);
