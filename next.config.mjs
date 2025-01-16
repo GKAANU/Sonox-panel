@@ -7,7 +7,7 @@ const nextConfig = {
     return [
       {
         source: '/socket.io/:path*',
-        destination: 'https://websocket-server-sonox-5b86c53b93d9.herokuapp.com/socket.io/:path*',
+        destination: 'wss://websocket-server-sonox-5b86c53b93d9.herokuapp.com/socket.io/:path*',
       },
     ]
   },

@@ -24,40 +24,60 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let socketInstance: Socket | null = null;
 
-    if (user) {
-      socketInstance = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
-        transports: ['websocket'],
-        path: '/socket.io/',
-        reconnection: true,
-        reconnectionAttempts: Infinity,
-        reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,
-        timeout: 60000,
-        auth: {
-          token: user.uid
+    const connectSocket = async () => {
+      if (user) {
+        try {
+          const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+          console.log('Connecting to socket URL:', socketUrl);
+
+          socketInstance = io(socketUrl, {
+            transports: ['websocket'],
+            path: '/socket.io/',
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 60000,
+            auth: {
+              token: user.uid
+            },
+            secure: true,
+            rejectUnauthorized: false
+          });
+
+          socketInstance.on('connect', () => {
+            console.log('Socket connected successfully');
+            setIsConnected(true);
+          });
+
+          socketInstance.on('connect_error', (error) => {
+            console.error('Socket connection error:', error);
+            setIsConnected(false);
+          });
+
+          socketInstance.on('disconnect', (reason) => {
+            console.log('Socket disconnected:', reason);
+            setIsConnected(false);
+          });
+
+          socketInstance.on('error', (error) => {
+            console.error('Socket error:', error);
+            setIsConnected(false);
+          });
+
+          setSocket(socketInstance);
+        } catch (error) {
+          console.error('Error initializing socket:', error);
+          setIsConnected(false);
         }
-      });
+      }
+    };
 
-      socketInstance.on('connect', () => {
-        console.log('Socket connected');
-        setIsConnected(true);
-      });
-
-      socketInstance.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
-        setIsConnected(false);
-      });
-
-      socketInstance.on('disconnect', () => {
-        console.log('Socket disconnected');
-        setIsConnected(false);
-      });
-
-      setSocket(socketInstance);
-    }
+    connectSocket();
 
     return () => {
       if (socketInstance) {
+        console.log('Cleaning up socket connection');
         socketInstance.disconnect();
         setSocket(null);
         setIsConnected(false);
