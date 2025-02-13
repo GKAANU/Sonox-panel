@@ -53,17 +53,18 @@ export default function ChatPage() {
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
 
-  const { user: currentUser, signOut } = useAuth();
+  const { user: currentUser, signOut, loading } = useAuth();
   const { messages, userChats, sendMessage, deleteMessages, deleteFriend } =
     useChat();
   const { callUser } = useCall();
 
   console.log("current user", currentUser);
-  // useEffect(() => {
-  //   if (!currentUser) {
-  //     router.push("/auth");
-  //   }
-  // }, [currentUser, router]);
+  useEffect(() => {
+    if (loading) return;
+    if (!currentUser) {
+      router.push("/auth");
+    }
+  }, [currentUser, router, loading]);
 
   const handleSelectChat = (chat: Chat) => {
     setSelectedChat(chat);
