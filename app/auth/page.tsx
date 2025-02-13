@@ -34,6 +34,7 @@ const errorMessages: { [key: string]: string } = {
 };
 
 export default function AuthPage() {
+  console.log("auth page");
   const router = useRouter();
   const { signIn, signUp, signInWithGoogle } = useAuth();
   const [error, setError] = useState("");

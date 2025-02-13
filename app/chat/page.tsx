@@ -56,7 +56,7 @@ export default function ChatPage() {
   const { user: currentUser, signOut } = useAuth();
   const { messages, userChats, sendMessage, deleteMessages, deleteFriend } = useChat();
   const { callUser } = useCall();
-
+  console.log("current user", currentUser);
   useEffect(() => {
     if (!currentUser) {
       router.push('/auth');
