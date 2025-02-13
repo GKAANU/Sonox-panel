@@ -14,7 +14,7 @@ import {
   Trash2,
   Eraser,
   Phone,
-  LogOut
+  LogOut,
 } from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -54,12 +54,14 @@ export default function ChatPage() {
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
 
   const { user: currentUser, signOut } = useAuth();
-  const { messages, userChats, sendMessage, deleteMessages, deleteFriend } = useChat();
+  const { messages, userChats, sendMessage, deleteMessages, deleteFriend } =
+    useChat();
   const { callUser } = useCall();
+  debugger;
   console.log("current user", currentUser);
   useEffect(() => {
     if (!currentUser) {
-      router.push('/auth');
+      router.push("/auth");
     }
   }, [currentUser, router]);
 
@@ -68,11 +70,13 @@ export default function ChatPage() {
     setShowChat(true);
   };
 
-  const handleCall = (type: 'audio' | 'video') => {
+  const handleCall = (type: "audio" | "video") => {
     if (!selectedChat) return;
-    const otherUserId = selectedChat.participants.find(id => id !== currentUser?.uid);
+    const otherUserId = selectedChat.participants.find(
+      (id) => id !== currentUser?.uid
+    );
     if (otherUserId) {
-      callUser(otherUserId, type === 'video');
+      callUser(otherUserId, type === "video");
     }
   };
 
@@ -110,7 +114,9 @@ export default function ChatPage() {
     return userChats.map((chat) => {
       if (!chat || !chat.participants || !chat.participantDetails) return null;
 
-      const otherParticipant = chat.participants.find(id => id !== currentUser?.uid);
+      const otherParticipant = chat.participants.find(
+        (id) => id !== currentUser?.uid
+      );
       if (!otherParticipant) return null;
 
       const participantDetails = chat.participantDetails[otherParticipant];
@@ -124,12 +130,12 @@ export default function ChatPage() {
           onClick={() => handleSelectChat(chat)}
         >
           <Avatar className="w-10 h-10">
-            <AvatarImage src={participantDetails.photoURL || ''} />
+            <AvatarImage src={participantDetails.photoURL || ""} />
             <AvatarFallback>
               {chat.isGroup ? (
                 <Users className="h-4 w-4" />
               ) : (
-                participantDetails.displayName?.[0] || 'U'
+                participantDetails.displayName?.[0] || "U"
               )}
             </AvatarFallback>
           </Avatar>
@@ -138,7 +144,7 @@ export default function ChatPage() {
               {chat.isGroup ? chat.groupName : participantDetails.displayName}
             </div>
             <div className="text-sm text-muted-foreground truncate">
-              {chat.lastMessage || ''}
+              {chat.lastMessage || ""}
             </div>
           </div>
         </Button>
@@ -149,24 +155,23 @@ export default function ChatPage() {
   const renderSelectedChatHeader = () => {
     if (!selectedChat || !currentUser) return null;
 
-    const otherParticipant = selectedChat.participants.find(id => id !== currentUser.uid);
+    const otherParticipant = selectedChat.participants.find(
+      (id) => id !== currentUser.uid
+    );
     if (!otherParticipant) return null;
 
-    const participantDetails = selectedChat.participantDetails[otherParticipant];
+    const participantDetails =
+      selectedChat.participantDetails[otherParticipant];
     if (!participantDetails) return null;
 
     return (
       <>
         <Avatar className="w-10 h-10">
-          <AvatarImage src={participantDetails.photoURL || ''} />
-          <AvatarFallback>
-            {participantDetails.displayName?.[0]}
-          </AvatarFallback>
+          <AvatarImage src={participantDetails.photoURL || ""} />
+          <AvatarFallback>{participantDetails.displayName?.[0]}</AvatarFallback>
         </Avatar>
         <div>
-          <h2 className="font-semibold">
-            {participantDetails.displayName}
-          </h2>
+          <h2 className="font-semibold">{participantDetails.displayName}</h2>
           <p className="text-sm text-muted-foreground">
             {participantDetails.email}
           </p>
@@ -178,21 +183,27 @@ export default function ChatPage() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
-      <div className={cn(
-        "w-full md:w-80 border-r bg-muted/10 transition-all duration-300",
-        showChat && "hidden md:block"
-      )}>
+      <div
+        className={cn(
+          "w-full md:w-80 border-r bg-muted/10 transition-all duration-300",
+          showChat && "hidden md:block"
+        )}
+      >
         <div className="flex flex-col h-full">
           <div className="p-4 border-b">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <Avatar className="w-10 h-10">
-                  <AvatarImage src={currentUser?.photoURL || ''} />
-                  <AvatarFallback>{currentUser?.displayName?.[0]}</AvatarFallback>
+                  <AvatarImage src={currentUser?.photoURL || ""} />
+                  <AvatarFallback>
+                    {currentUser?.displayName?.[0]}
+                  </AvatarFallback>
                 </Avatar>
                 <div>
                   <h2 className="font-semibold">{currentUser?.displayName}</h2>
-                  <p className="text-sm text-muted-foreground">{currentUser?.email}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {currentUser?.email}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -223,25 +234,25 @@ export default function ChatPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1"
               />
-              <Button variant="outline" onClick={() => setShowFriendRequests(true)}>
+              <Button
+                variant="outline"
+                onClick={() => setShowFriendRequests(true)}
+              >
                 <UserPlus className="w-5 h-5" />
               </Button>
             </div>
           </div>
-          
+
           <ScrollArea className="flex-1 px-3 py-2">
-            <div className="space-y-2">
-              {renderChatList()}
-            </div>
+            <div className="space-y-2">{renderChatList()}</div>
           </ScrollArea>
         </div>
       </div>
 
       {/* Chat Area */}
-      <div className={cn(
-        "flex-1 flex flex-col",
-        !showChat && "hidden md:flex"
-      )}>
+      <div
+        className={cn("flex-1 flex flex-col", !showChat && "hidden md:flex")}
+      >
         {selectedChat ? (
           <>
             <div className="h-16 border-b flex items-center justify-between px-4 bg-muted/5">
@@ -257,10 +268,18 @@ export default function ChatPage() {
                 {renderSelectedChatHeader()}
               </div>
               <div className="flex gap-1">
-                <Button variant="ghost" size="icon" onClick={() => handleCall('audio')}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleCall("audio")}
+                >
                   <Phone className="w-5 h-5" />
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => handleCall('video')}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleCall("video")}
+                >
                   <Video className="w-5 h-5" />
                 </Button>
                 <DropdownMenu>
@@ -270,11 +289,15 @@ export default function ChatPage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleDeleteFriend(selectedChat)}>
+                    <DropdownMenuItem
+                      onClick={() => handleDeleteFriend(selectedChat)}
+                    >
                       <Trash2 className="w-4 h-4 mr-2" />
                       Delete Friend
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDeleteMessages(selectedChat)}>
+                    <DropdownMenuItem
+                      onClick={() => handleDeleteMessages(selectedChat)}
+                    >
                       <Eraser className="w-4 h-4 mr-2" />
                       Delete Messages
                     </DropdownMenuItem>
@@ -290,15 +313,19 @@ export default function ChatPage() {
                     key={message.id}
                     className={cn(
                       "flex",
-                      message.senderId === currentUser?.uid ? "justify-end" : "justify-start"
+                      message.senderId === currentUser?.uid
+                        ? "justify-end"
+                        : "justify-start"
                     )}
                   >
-                    <div className={cn(
-                      "max-w-[70%] rounded-lg p-3",
-                      message.senderId === currentUser?.uid
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    )}>
+                    <div
+                      className={cn(
+                        "max-w-[70%] rounded-lg p-3",
+                        message.senderId === currentUser?.uid
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted"
+                      )}
+                    >
                       {message.text}
                     </div>
                   </div>
