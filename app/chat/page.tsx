@@ -57,13 +57,13 @@ export default function ChatPage() {
   const { messages, userChats, sendMessage, deleteMessages, deleteFriend } =
     useChat();
   const { callUser } = useCall();
-  debugger;
+
   console.log("current user", currentUser);
-  useEffect(() => {
-    if (!currentUser) {
-      router.push("/auth");
-    }
-  }, [currentUser, router]);
+  // useEffect(() => {
+  //   if (!currentUser) {
+  //     router.push("/auth");
+  //   }
+  // }, [currentUser, router]);
 
   const handleSelectChat = (chat: Chat) => {
     setSelectedChat(chat);
